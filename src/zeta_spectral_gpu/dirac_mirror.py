@@ -301,3 +301,240 @@ def riemann_tuning_phase(E: float) -> float:
     zero-finding.
     """
     return -(riemann_siegel_theta(E) + (np.pi / 2.0) * np.sign(hardy_z_prime(E)))
+
+
+# ---------------------------------------------------------------------------
+# Exact finite-eps transfer-matrix machinery (#44 spike, gated by #45)
+#
+# Everything above lives in the eps -> 0 *semiclassical* limit: the
+# Baker-Campbell-Hausdorff / Trotter collapse of the transfer-matrix product to
+# the Moebius-Dirichlet locator (Sierra eqs. 121-128). The functions below form
+# the **exact** product T_k...T_2 at finite eps (eq. 115) -- the un-linearised
+# object #44 asks about -- and the harmonic model (Appendix A), the one model
+# with a genuine finite-eps spectral density, as a no-prime positive control.
+# The spike uses these to rule on whether an operator-intrinsic, non-circular
+# finite-eps statistic exists; see ``_private/issue-44-resonance-ruling.md``.
+# ---------------------------------------------------------------------------
+
+
+def transfer_matrix(E: complex, varrho: complex, ell: float) -> np.ndarray:
+    """Exact single-mirror transfer matrix ``T(E, varrho, ell)`` (Sierra eq. 115).
+
+    The SU(1,1) matrix propagating the Dirac spinor amplitude across the mirror
+    at radial position ``ell`` with (generally complex) reflection amplitude
+    ``varrho`` (``|varrho| < 1``)::
+
+        T = 1/(1-|p|^2) [[1+|p|^2,        2 p ell^{-2iE} ],
+                         [2 conj(p) ell^{2iE},  1+|p|^2  ]]   (p = varrho).
+
+    ``det T = 1`` and ``T`` is pseudo-unitary w.r.t. ``sigma_z``
+    (``T^dag sigma_z T = sigma_z``); the spike's tests check both invariants.
+    ``E`` may be complex (the off-diagonal entries are the analytic continuation,
+    not conjugates), so the resolvent / resonance question can be probed off the
+    real axis.
+    """
+    denom = 1.0 - abs(varrho) ** 2
+    diag = (1.0 + abs(varrho) ** 2) / denom
+    off01 = 2.0 * varrho * ell ** (-2j * E) / denom
+    off10 = 2.0 * np.conj(varrho) * ell ** (2j * E) / denom
+    return np.array([[diag, off01], [off10, diag]], dtype=np.complex128)
+
+
+def amplitude_norms(
+    E: np.ndarray | float,
+    varrho: np.ndarray,
+    ell: np.ndarray,
+    *,
+    vartheta: float = 0.0,
+) -> np.ndarray:
+    """Exact per-interval norms ``<A_k|A_k>``, k = 1..N (Sierra eq. 118 summand).
+
+    Forms the **exact** product ``|A_k> = T_k^{-1} ... T_2^{-1} |A_1(vartheta)>``
+    with ``|A_1(vartheta)> = (1, e^{i vartheta})`` (eqs. 117, 120), iterating the
+    single-mirror matrices ``T_n = transfer_matrix(E, varrho[n], ell[n])`` over
+    mirrors ``n = 2..N``. ``varrho`` and ``ell`` are 1-indexed arrays of length
+    ``N + 1`` (index 0 unused; index 1 is the boundary ``ell_1 = 1`` and carries
+    no mirror). A mirror with ``varrho[n] == 0`` (a non-square-free ``n`` in the
+    Moebius model) is the identity and is skipped.
+
+    Vectorised over ``E``; returns shape ``(len(E), N)`` with column ``k-1``
+    holding ``<A_k|A_k> = |A_{-,k}|^2 + |A_{+,k}|^2`` -- Sierra's Fig. 4 quantity,
+    computed with **no** eps -> 0 / BCH approximation. ``T^{-1}`` flips the sign
+    of the off-diagonal entries (``det T = 1``).
+    """
+    E = np.atleast_1d(np.asarray(E, dtype=np.float64))
+    ell = np.asarray(ell, dtype=np.float64)
+    n_max = ell.shape[0] - 1
+    am = np.ones_like(E, dtype=np.complex128)
+    ap = np.exp(1j * vartheta) * np.ones_like(E, dtype=np.complex128)
+    norms = np.empty((E.shape[0], n_max), dtype=np.float64)
+    norms[:, 0] = np.abs(am) ** 2 + np.abs(ap) ** 2
+    for n in range(2, n_max + 1):
+        v = varrho[n]
+        if v == 0:
+            norms[:, n - 1] = norms[:, n - 2]
+            continue
+        denom = 1.0 - abs(v) ** 2
+        diag = (1.0 + abs(v) ** 2) / denom
+        phase = ell[n] ** (2j * E)  # ell^{2iE}
+        off01 = -2.0 * v / (denom * phase)  # -2 v ell^{-2iE} / denom
+        off10 = -2.0 * np.conj(v) * phase / denom  # -2 conj(v) ell^{2iE} / denom
+        am, ap = diag * am + off01 * ap, off10 * am + diag * ap
+        norms[:, n - 1] = np.abs(am) ** 2 + np.abs(ap) ** 2
+    return norms
+
+
+def bch_amplitude_norms(
+    E: np.ndarray | float,
+    varrho: np.ndarray,
+    ell: np.ndarray,
+    *,
+    vartheta: float = 0.0,
+) -> np.ndarray:
+    """Semiclassical (BCH) per-interval norm ``<A^T_k|A^T_k>`` (Sierra eq. 128).
+
+    The eps -> 0 approximation to :func:`amplitude_norms` over the **same** mirror
+    set. Linearising the eq.-115 matrix gives the BCH exponent
+    ``W_k = sum_{n=2..k} 2 varrho_n ell_n^{-2iE}`` (the factor 2 is the eq.-115
+    off-diagonal, eq. 121); writing ``R_k = |W_k|``, ``phi_k = arg(W_k)``,
+
+        <A^T_k|A^T_k> = e^{2R_k}(1 - cos(vartheta - phi_k))
+                      + e^{-2R_k}(1 + cos(vartheta - phi_k))      (eq. 128).
+
+    This drops the O(eps^2) commutators that BCH neglects, so
+    ``amplitude_norms - bch_amplitude_norms`` is the exact measure of *what finite
+    eps adds*; the spike shows it vanishes as eps^2 (no new operator-intrinsic
+    structure). Same mirror set / literal-eq.-115 convention as
+    :func:`amplitude_norms`, so the two are directly comparable.
+    """
+    E = np.atleast_1d(np.asarray(E, dtype=np.float64))
+    ell = np.asarray(ell, dtype=np.float64)
+    n_max = ell.shape[0] - 1
+    # BCH exponent W_k = sum_{n=2..k} 2 varrho_n ell_n^{-2iE}, vectorised over (E, n)
+    phase = ell[None, 2:] ** (-2j * E[:, None])  # ell_n^{-2iE}, outer over (E, n)
+    W = 2.0 * np.cumsum(varrho[None, 2:].astype(np.complex128) * phase, axis=1)
+    R = np.abs(W)
+    c = np.cos(np.angle(W) + vartheta)  # = cos(xi_k - vartheta), xi_k = -arg(W)
+    body = np.exp(2.0 * R) * (1.0 - c) + np.exp(-2.0 * R) * (1.0 + c)
+    out = np.empty((E.shape[0], n_max), dtype=np.float64)
+    out[:, 0] = 2.0  # k = 1: |A_1|^2 = 2
+    out[:, 1:] = body
+    return out
+
+
+def mobius_amplitude_norms(
+    E: np.ndarray | float,
+    n: int,
+    *,
+    eps: float,
+    vartheta: float = 0.0,
+    mu: np.ndarray | None = None,
+    bch: bool = False,
+) -> np.ndarray:
+    """``<A_k|A_k>`` for the Moebius (Riemann) model: ``ell_n=sqrt(n)``,
+    ``varrho_n = eps mu(n)/sqrt(n)`` (eq. 152).
+
+    Convenience wrapper that builds the mirror arrays and calls the exact
+    :func:`amplitude_norms` (or :func:`bch_amplitude_norms` if ``bch=True``).
+    Mirrors sit only at square-free ``n`` (``mu(n) != 0``); ``n = 1`` is the
+    boundary. This is the finite-eps object #44 is about -- contrast the
+    eps -> 0 locator :func:`mobius_partial_sum`.
+    """
+    if mu is None:
+        mu = mobius_sieve(n)
+    k = np.arange(n + 1, dtype=np.float64)
+    ell = np.sqrt(k)  # ell[1] = 1 (boundary), ell[n] = sqrt(n)
+    varrho = np.zeros(n + 1, dtype=np.float64)
+    varrho[2:] = eps * mu[2 : n + 1].astype(np.float64) / np.sqrt(k[2:])
+    fn = bch_amplitude_norms if bch else amplitude_norms
+    return fn(E, varrho, ell, vartheta=vartheta)
+
+
+# --- Harmonic model (Sierra Appendix A) — the no-prime finite-eps control ------
+#
+# ell_n = e^{n/2}, varrho_n = eps (constant): integer proper times tau_n = 1
+# (eq. 67), NOT log p. The one model in the paper with a genuine *finite-eps*
+# spectrum: continuum bands separated by gaps, plus discrete levels E_n = 2 pi n.
+# The iterated transfer matrix is the single E-dependent matrix S (eq. A11); the
+# spectrum follows from whether S is elliptic (continuum) or hyperbolic (gap).
+# Periods are integers => no primes: "finite-eps DOS exists" and "prime-built"
+# are mutually exclusive here. This is the spike's positive control -- the exact
+# product code reproduces these closed forms.
+
+
+def _harmonic_g(eps: float) -> float:
+    """Boost rapidity ``g`` of the harmonic step matrix: ``e^g=(1+eps)/(1-eps)``."""
+    return 2.0 * np.arctanh(eps)
+
+
+def harmonic_step_matrix(E: complex, eps: float) -> np.ndarray:
+    """Iterated transfer matrix ``S = e^{-g sigma_x} e^{iE sigma_z/2}`` (eq. A11).
+
+    ``S = [[cosh g e^{iE/2}, -sinh g e^{-iE/2}], [-sinh g e^{iE/2}, cosh g
+    e^{-iE/2}]]`` with ``g = _harmonic_g(eps)``; ``det S = 1``,
+    ``Tr S = 2 cosh g cos(E/2)``.
+    """
+    g = _harmonic_g(eps)
+    cg, sg = np.cosh(g), np.sinh(g)
+    e = np.exp(0.5j * E)
+    return np.array([[cg * e, -sg / e], [-sg * e, cg / e]], dtype=np.complex128)
+
+
+def harmonic_trace(E: np.ndarray | float, eps: float) -> np.ndarray:
+    """``Tr S = 2 cosh g cos(E/2)`` (eq. A15). ``|Tr S| < 2`` <=> continuum."""
+    g = _harmonic_g(eps)
+    return 2.0 * np.cosh(g) * np.cos(0.5 * np.asarray(E, dtype=np.float64))
+
+
+def harmonic_is_continuum(E: np.ndarray | float, eps: float) -> np.ndarray:
+    """Continuum (elliptic ``S``) test ``|sin(E/2)| > tanh g`` (eq. A15)."""
+    g = _harmonic_g(eps)
+    return np.abs(np.sin(0.5 * np.asarray(E, dtype=np.float64))) > np.tanh(g)
+
+
+def harmonic_gap_half_width(eps: float) -> float:
+    """Band-edge offset ``delta`` with ``sin(pi delta) = 2 eps/(1+eps^2)`` (A16)."""
+    return float(np.arcsin(2.0 * eps / (1.0 + eps**2)) / np.pi)
+
+
+def harmonic_bands(eps: float, m_values: np.ndarray) -> list[tuple[float, float]]:
+    """Continuum bands ``2 pi [m + delta, m + 1 - delta]`` (eq. A16)."""
+    delta = harmonic_gap_half_width(eps)
+    return [
+        (2.0 * np.pi * (m + delta), 2.0 * np.pi * (m + 1 - delta))
+        for m in np.asarray(m_values)
+    ]
+
+
+def harmonic_discrete_levels(m_values: np.ndarray) -> np.ndarray:
+    """Discrete eigenvalues ``E_m = 2 pi m`` (eq. A13, ``vartheta = 0`` or ``pi``).
+
+    These survive for every coupling ``g`` (every ``eps``), immersed in the
+    continuum, and are exactly the integer proper-time analogue of the Moebius
+    model's zeros -- but driven by the integers, not the primes.
+    """
+    return 2.0 * np.pi * np.asarray(m_values, dtype=np.float64)
+
+
+def harmonic_amplitude_norms(
+    E: np.ndarray | float, n: int, *, eps: float, vartheta: float = 0.0
+) -> np.ndarray:
+    """Exact ``<A_k|A_k>``, k = 1..n, by iterating the harmonic ``S`` (eq. A11).
+
+    Same per-interval norm as :func:`amplitude_norms` but for the harmonic array;
+    bounded in a band (continuum), growing in a gap, and -> 0 at ``E = 2 pi m``
+    with ``vartheta = 0`` (a normalizable discrete state). Vectorised over ``E``.
+    """
+    E = np.atleast_1d(np.asarray(E, dtype=np.float64))
+    g = _harmonic_g(eps)
+    cg, sg = np.cosh(g), np.sinh(g)
+    e = np.exp(0.5j * E)
+    ei = 1.0 / e
+    am = np.ones_like(E, dtype=np.complex128)
+    ap = np.exp(1j * vartheta) * np.ones_like(E, dtype=np.complex128)
+    norms = np.empty((E.shape[0], n), dtype=np.float64)
+    norms[:, 0] = np.abs(am) ** 2 + np.abs(ap) ** 2
+    for k in range(1, n):
+        am, ap = cg * e * am - sg * ei * ap, -sg * e * am + cg * ei * ap
+        norms[:, k] = np.abs(am) ** 2 + np.abs(ap) ** 2
+    return norms

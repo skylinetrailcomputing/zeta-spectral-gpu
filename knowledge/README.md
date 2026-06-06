@@ -10,6 +10,10 @@ top-level `CLAUDE.md`; per-session narrative lives in git history.
 - [`debruijn-newman-flow.md`](debruijn-newman-flow.md) — why the De Bruijn–Newman
   heat flow is a *forward* rigidity experiment (the warm-up spike #20), and the
   precision lesson it shares with the flagship.
+- [`ccm-operator.md`](ccm-operator.md) — the verified, code-ready spec for the
+  flagship Connes–Consani–Moscovici finite-cutoff operator, pinned
+  equation-by-equation against arXiv:2511.22755. Read this before implementing
+  the flagship matrix fill or λ-sweep.
 
 The deeper mathematical background (harmonic functions → conical/Legendre
 functions → hyperbolic/Selberg spectrum → GUE statistics, and the full

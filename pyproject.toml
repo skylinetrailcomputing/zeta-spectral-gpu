@@ -4,7 +4,8 @@ version = "0.0.1"
 description = "GPU/CUDA experiments on the spectral approach to the Riemann zeta zeros (forward problems only)."
 readme = "README.md"
 requires-python = ">=3.11"
-# license: TODO — decide before first tag (MIT or Apache-2.0).
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = [
     "numpy>=1.26",
     "scipy>=1.11",
@@ -13,11 +14,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# GPU stack. The CuPy wheel MUST match the installed CUDA runtime. The dev box
-# reports a CUDA 13.2 *driver* (backward compatible with the 12.x runtime), so
-# cupy-cuda12x is the expected pick — but VERIFY `import cupy` sees the GPU
-# before trusting it. If a cupy-cuda13x wheel is what installs cleanly, use it.
-gpu = ["cupy-cuda12x"]
+# GPU stack. The dev box has a CUDA 13.2 *driver*, backward compatible with the
+# 12.x runtime, so the cupy-cuda12x wheel is correct (verified: it detects the
+# RTX 3090, CUDA runtime 12.9). The `[ctk]` extra is REQUIRED, not optional:
+# CuPy 14.x JIT-compiles every kernel at runtime via NVRTC and needs the CUDA
+# toolkit *headers*, which the bare wheel doesn't bundle. `[ctk]` supplies them
+# as pip wheels — no system CUDA Toolkit install required.
+gpu = ["cupy-cuda12x[ctk]"]
 
 [dependency-groups]
 dev = ["pytest>=8.0", "ruff>=0.6"]

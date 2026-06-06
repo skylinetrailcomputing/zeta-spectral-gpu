@@ -33,6 +33,12 @@ top-level `CLAUDE.md`; per-session narrative lives in git history.
   the cutoff `x` grows the local statistics relax toward GUE and the
   zero-tracking window converges to the real zeros' `⟨r̃⟩`; why pushing `N` is the
   wrong lever (the pole-locked tail).
+- [`frontier-survey-2026.md`](frontier-survey-2026.md) — the #50 literature
+  coverage check (2023–2026 forward spectral / Hilbert–Pólya numerics): the
+  Connes-lineage frontier (incl. the 2026 Groskin `connes-cvs` implementation
+  arXiv:2605.20224 and Śliwiński's inverse-log convergence law arXiv:2601.12133),
+  verdicts on the four self-identified gaps (Katz–Sarnak #51, Li #52, BBM,
+  Keating–Snaith), and a ranked list of forward experiment candidates.
 - [`predecessor/`](predecessor/) — distilled, public-safe archive of the CPU
   predecessor `wedgetrigfunctions202601` (private): the harmonic-functions →
   conical → hyperbolic/Selberg → GUE arc, and the arithmetic-chaos headline

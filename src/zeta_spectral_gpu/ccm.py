@@ -394,6 +394,57 @@ class MinimalMode:
     parity_residual: mp.mpf  # max |xi_{-n} - xi_n| / max|xi|; ~0 confirms even
 
 
+def _even_block(A: mp.matrix, N: int) -> mp.matrix:
+    """Restriction of the bisymmetric ``QW`` to its even (parity ``+1``) subspace.
+
+    ``QW`` commutes with the parity grading ``gamma`` (``A[i, j] = A[2N-i, 2N-j]``,
+    asserted in ``test_weil_matrix_symmetric_and_parity_even``), so in the
+    orthonormal even basis ``{e_0 = delta_0, u_n = (delta_n + delta_{-n})/sqrt 2}``
+    (``n = 1..N``) it block-diagonalises to an ``(N+1) x (N+1)`` matrix carrying the
+    whole *even* spectrum — including the minimal eigenvalue ``epsilon_N``, whose
+    eigenvector is even (Def. 5.3). The block entries are
+
+        B[0, 0]   = A[N, N]                       (the n = 0 mode)
+        B[0, k]   = sqrt 2 * A[N, N+k]            (k = 1..N)
+        B[j, k]   = A[N+j, N+k] + A[N+j, N-k]     (j, k = 1..N).
+
+    Solving the near-null mode in this block is the same eigenproblem at half the
+    dimension, so the ``O(N^3)`` LU shrinks by ``((N+1)/(2N+1))^3 ~ 1/8`` (#18).
+    """
+    c = N  # matrix index of mode n = 0
+    sqrt2 = mp.sqrt(2)
+    block = mp.zeros(N + 1, N + 1)
+    block[0, 0] = A[c, c]
+    for k in range(1, N + 1):
+        val = sqrt2 * A[c, c + k]
+        block[0, k] = val
+        block[k, 0] = val
+    for j in range(1, N + 1):
+        for k in range(j, N + 1):
+            val = A[c + j, c + k] + A[c + j, c - k]
+            block[j, k] = val
+            block[k, j] = val
+    return block
+
+
+def _reconstruct_even(coeffs, N: int) -> list:
+    """Lift a reduced even-block vector ``coeffs`` (length ``N+1``) to the full
+    ``2N+1`` mode vector, indexed ``i -> n = i - N``.
+
+    The orthonormal even basis maps ``coeffs[0] -> xi_0`` and
+    ``coeffs[k] -> xi_{+/-k} = coeffs[k]/sqrt 2`` (``k = 1..N``); the ``sqrt 2``
+    keeps the lift norm-preserving, so a unit ``coeffs`` yields a unit ``xi``.
+    """
+    sqrt2 = mp.sqrt(2)
+    full = [mp.mpf(0)] * (2 * N + 1)
+    full[N] = coeffs[0]
+    for k in range(1, N + 1):
+        v = coeffs[k] / sqrt2
+        full[N + k] = v
+        full[N - k] = v
+    return full
+
+
 def smallest_even_eigenvector(A: mp.matrix, N: int, *, iters: int = 6) -> MinimalMode:
     """Minimal eigenvector ``xi`` of ``QW_lambda^N`` by inverse iteration.
 
@@ -401,25 +452,53 @@ def smallest_even_eigenvector(A: mp.matrix, N: int, *, iters: int = 6) -> Minima
     near-null mode whose eigenvector defines the operator) and the rest ``O(1)``;
     inverse iteration (``x <- A^{-1} x``) converges to that near-null direction in
     a single step because the spectral gap ``epsilon_2 / epsilon_N`` is enormous.
-    A handful of steps reach the linear-solve precision floor. The result is
-    symmetrised to the even subspace (``gamma xi = xi``, Def. 5.3) and the
-    pre-symmetrisation parity residual is reported as a check.
+
+    The minimal eigenvector is even (``gamma xi = xi``, Def. 5.3), so we iterate in
+    the ``(N+1)``-dimensional even block (:func:`_even_block`) rather than the full
+    ``2N+1`` space: the ``O(N^3)`` LU factorisation — ~81% of the pipeline after the
+    #17 factor-once win — runs on half the dimension, ~8x fewer flops (#18). The
+    even basis makes the result exactly even by construction (no symmetrisation, no
+    odd contamination to project out), so the parity residual is identically zero.
+    As in #17 the block is factored once (LU) and reused across all ``iters`` solves.
+    """
+    block = _even_block(A, N)
+    lu, piv = mp.mp.LU_decomp(block, overwrite=False)
+    c = mp.matrix([mp.mpf(1) for _ in range(N + 1)])
+    for _ in range(iters):
+        c = mp.mp.U_solve(lu, mp.mp.L_solve(lu, c, piv))
+        c = c / mp.norm(c)
+
+    even = _reconstruct_even([c[i] for i in range(N + 1)], N)
+    # Rayleigh quotient for epsilon_N against the full QW (cheap O(dim^2)); this
+    # keeps epsilon_N defined against the paper's matrix and equals the reduced
+    # quotient c^T block c.
+    dim = 2 * N + 1
+    xv = mp.matrix(even)
+    Ax = A * xv
+    eps = mp.fsum(even[i] * Ax[i] for i in range(dim)) / mp.fsum(
+        even[i] ** 2 for i in range(dim)
+    )
+    return MinimalMode(eigenvalue=eps, eigenvector=even, parity_residual=mp.mpf(0))
+
+
+def _smallest_even_eigenvector_full(
+    A: mp.matrix, N: int, *, iters: int = 6
+) -> MinimalMode:
+    """Full-space inverse iteration (the pre-#18 path), retained as the cross-check.
+
+    Identical algorithm to :func:`smallest_even_eigenvector` but in the full
+    ``2N+1`` space: factor ``A`` once, inverse-iterate, *then* symmetrise to the even
+    subspace and report the pre-symmetrisation parity residual. The #18 reduced path
+    must agree with this to the precision floor (asserted in the tests); it is also
+    what the GPU-conditioning study (#9) calls.
     """
     dim = 2 * N + 1
-    # Inverse iteration solves ``A y = x`` against the *same* matrix every step, so
-    # factor ``A`` once (LU) and reuse it across all ``iters`` solves rather than
-    # re-factoring (the O(N^3) cost) on each call — which is what ``mp.lu_solve``
-    # does. The eigensolve is ~95% of the pipeline, so amortizing the factorization
-    # is the dominant CPU win (#17); ~6x on the eigensolve, bit-identical to the
-    # per-call ``lu_solve`` (asserted in the tests). ``overwrite=False`` keeps ``A``
-    # intact for the Rayleigh quotient below.
     lu, piv = mp.mp.LU_decomp(A, overwrite=False)
     x = mp.matrix([mp.mpf(1) for _ in range(dim)])
     for _ in range(iters):
         x = mp.mp.U_solve(lu, mp.mp.L_solve(lu, x, piv))
         x = x / mp.norm(x)
 
-    # Rayleigh quotient for epsilon_N.
     Ax = A * x
     eps = mp.fdot(x, Ax) / mp.fdot(x, x)
 
@@ -464,12 +543,24 @@ def operator_eigenvalues(xi, N: int, L, count: int) -> list[mp.mpf]:
     middle — a uniform grid misses the near-pole roots and silently drops one,
     which would misalign every higher eigenvalue. Cross-checked against a direct
     rank-one eigensolve (``mp.eig``) in the tests.
+
+    The sum is folded over parity. With ``xi`` even (``xi[N+n] = xi[N-n]``) and the
+    poles ``d_n = 2 pi n / L`` odd in ``n``, pairing ``+n`` with ``-n`` gives
+
+        F(z) = -xi_0 / z + sum_{n=1}^{N} 2 z xi_n / (d_n^2 - z^2),
+
+    half the terms of the raw ``(2N+1)``-term sum and ~2x per evaluation across the
+    pole-clustered search — the roots are unchanged (#18).
     """
     L = mp.mpf(L)
-    d = [2 * mp.pi * n / L for n in range(-N, N + 1)]
+    xi0 = xi[N]
+    xs = [xi[N + n] for n in range(1, N + 1)]  # xi_n, n = 1..N (xi is even)
+    d2 = [(2 * mp.pi * n / L) ** 2 for n in range(1, N + 1)]  # d_n^2
 
     def F(z):
-        return mp.fsum(xi[i] / (d[i] - z) for i in range(2 * N + 1))
+        zz = z * z
+        two_z = 2 * z
+        return -xi0 / z + mp.fsum(two_z * xs[i] / (d2[i] - zz) for i in range(N))
 
     pos_poles = [2 * mp.pi * n / L for n in range(1, N + 1)]
     edges = [mp.mpf(0)] + pos_poles

@@ -92,6 +92,8 @@ src/zeta_spectral_gpu/   library code
   spacing.py             CPU reference statistics (the GPU must match these)
   spacing_gpu.py         GPU statistics via CuPy + the RawModule kernel
   kernels/spacing.cu     hand-written CUDA C (first kernel target)
+  debruijn_newman.py     forward H_t-zero generator (mpmath) for the DBN flow
+  plots.py               matplotlib figures for the warm-up statistics
 scripts/                 runnable entry points (uv run)
 tests/                   invariants, incl. GPU-vs-CPU agreement
 knowledge/               conceptual notes (why the math looks the way it does)

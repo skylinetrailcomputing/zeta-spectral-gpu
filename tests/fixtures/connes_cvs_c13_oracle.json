@@ -1,0 +1,28 @@
+{
+  "_about": "Known-good oracle for the Connes-van Suijlekom Galerkin matrix Q(c). connes-cvs is used as a forward cross-check / dev-dependency only; we never fit to it. Regenerate with scripts/run_connes_cvs_oracle.py --write.",
+  "source": {
+    "package": "connes-cvs",
+    "package_version": "0.2.2",
+    "python_flint_version": "0.8.0",
+    "doi": "10.5281/zenodo.19546514",
+    "repo": "https://github.com/akivag613/connes-cvs-"
+  },
+  "cell": {
+    "c": 13,
+    "N": 80,
+    "T": 400,
+    "dps": 80
+  },
+  "lambda_min": "2.5282661401965756026025862533001704392434144948201908268289070778008968019858182e-59",
+  "lambda_min_float": 2.5282661401965755e-59,
+  "gamma1_detected": "14.134725141734693790457251983562470270784257115699243175862686997067549419890820",
+  "gamma1_abs_error": "1.7711953691758599008156302801707949868826634553780424596984505650209481552672063e-55",
+  "gamma1_abs_error_float": 1.77119536917586e-55,
+  "normalization_note": {
+    "what": "lambda_min is connes-cvs's internal ground-state eigenvalue. The CCM/Connes papers tabulate the *zero error* |gamma_k - t_k|, not lambda_min. The ~1.2-1.3 factor below relates connes-cvs's first-zero error to the published values; it reflects N/T/precision and normalization conventions, not a correctness gap. Interpret absolute lambda_min with this in mind.",
+    "published_gamma1_err": {
+      "ccm_2025_sec6": "2.44e-55",
+      "connes_2026": "2.6e-55"
+    }
+  }
+}

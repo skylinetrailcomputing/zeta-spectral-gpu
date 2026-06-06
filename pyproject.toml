@@ -22,11 +22,26 @@ dependencies = [
 # as pip wheels — no system CUDA Toolkit install required.
 gpu = ["cupy-cuda12x[ctk]"]
 
+# Validation oracle (#16). connes-cvs (Groskin 2026) is the first public
+# implementation of the Connes–van Suijlekom Galerkin matrix. Used as a
+# dev/cross-check dependency ONLY — never imported at runtime: we diff our own
+# forward numbers against it, we never fit to it. Opt-in like `gpu` so a plain
+# `uv sync` (and CI) stays lean. `[fast]` pulls python-flint (Arb digamma,
+# ~11x); λ_min is bit-identical with or without it, so [fast] is pure speed.
+oracle = ["connes-cvs[fast]>=0.2.2"]
+
 [dependency-groups]
 dev = ["pytest>=8.0", "ruff>=0.6"]
 
 [tool.ruff]
 line-length = 88
+
+[tool.pytest.ini_options]
+# `slow` guards tests that drive connes-cvs (~minutes, needs the `oracle`
+# extra). Deselected by default so `uv run pytest` and CI stay fast; run them
+# with `uv run pytest -m slow` after `uv sync --extra oracle`.
+addopts = "-m 'not slow'"
+markers = ["slow: long-running cross-checks (opt-in; need the oracle extra)"]
 
 [build-system]
 requires = ["hatchling"]

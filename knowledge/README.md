@@ -14,6 +14,10 @@ top-level `CLAUDE.md`; per-session narrative lives in git history.
   flagship Connes–Consani–Moscovici finite-cutoff operator, pinned
   equation-by-equation against arXiv:2511.22755. Read this before implementing
   the flagship matrix fill or λ-sweep.
+- [`connes-cvs-oracle.md`](connes-cvs-oracle.md) — the `connes-cvs` baseline
+  oracle (#16): the documented `c=13` `λ_min` cell, frozen as a checked-in
+  fixture for the CPU reference (#8) and GPU assembly (#9) to diff against, plus
+  the `λ_min` vs zero-error distinction and the ~1.2–1.3 normalization factor.
 
 The deeper mathematical background (harmonic functions → conical/Legendre
 functions → hyperbolic/Selberg spectrum → GUE statistics, and the full

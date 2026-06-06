@@ -70,3 +70,52 @@ def spacing_histogram_figure(
     fig.savefig(out, dpi=150)
     plt.close(fig)
     return out
+
+
+def pair_correlation_figure(
+    hist: np.ndarray,
+    bin_width: float,
+    *,
+    n_levels: int,
+    out_path: Path | str,
+    title: str | None = None,
+    label: str = "Riemann zeros",
+) -> Path:
+    """Save empirical pair correlation R2(r) vs Montgomery's GUE sine-kernel form.
+
+    ``hist`` is the forward pair-separation histogram (CPU or GPU); ``n_levels``
+    is how many unfolded levels produced it. Returns the path written.
+    """
+    centres, r2 = spacing.pair_correlation_density(hist, bin_width, n_levels)
+    grid = np.linspace(0.0, float(centres[-1] + 0.5 * bin_width), 600)
+
+    fig, ax = plt.subplots(figsize=(7.0, 4.5))
+    ax.plot(
+        centres,
+        r2,
+        color="#5b9bd5",
+        lw=1.4,
+        marker="o",
+        ms=3,
+        label=f"{label} (N={n_levels:,})",
+    )
+    ax.plot(
+        grid,
+        spacing.montgomery_pair_correlation(grid),
+        color="#c0392b",
+        lw=2,
+        label=r"Montgomery $1-\left(\frac{\sin \pi r}{\pi r}\right)^2$",
+    )
+    ax.set_xlabel("normalised separation $r$")
+    ax.set_ylabel("pair correlation $R_2(r)$")
+    ax.set_xlim(0.0, float(centres[-1] + 0.5 * bin_width))
+    ax.set_ylim(0.0, 1.35)
+    ax.set_title(title or "Zero pair correlation vs the GUE sine kernel")
+    ax.legend(loc="lower right")
+    fig.tight_layout()
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out

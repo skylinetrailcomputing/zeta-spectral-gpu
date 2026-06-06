@@ -32,12 +32,18 @@ Don't frame a task as "one giant fp64 eigensolve" without checking the
 precision budget first.
 
 ## Environment
-Build with `uv sync` then `uv sync --extra gpu`. The CuPy wheel must match the
-installed CUDA runtime — the dev box reports a **CUDA 13.2 driver** (backward
-compatible with the 12.x runtime, so `cupy-cuda12x` is expected) but **verify**
-`import cupy` sees the GPU; don't trust the pin. As of scaffolding there is no
-Python/uv on the dev machine yet — standing up the runtime is the gating task
-before any kernel runs.
+uv-managed. On a fresh machine: install uv (`winget install astral-sh.uv` on
+Windows), then from the repo root `uv sync` (CPU deps) and `uv sync --extra gpu`
+(adds CuPy). uv reads `.python-version` (3.12) and provisions the interpreter
+itself — no python.org / Microsoft Store Python needed. Run things via `uv run`
+(e.g. `uv run pytest`, `uv run python scripts/run_spacing.py`).
+
+The `gpu` extra is `cupy-cuda12x[ctk]`: the **`[ctk]` is required**, not optional —
+CuPy 14 JIT-compiles kernels via NVRTC at runtime and needs CUDA toolkit headers,
+which `[ctk]` supplies as pip wheels (no system CUDA Toolkit install). Verified on
+an RTX 3090 (CUDA runtime 12.9 under a 13.2 driver). A harmless
+`UserWarning: CUDA path could not be detected` appears on import because the libs
+come from pip wheels rather than a system toolkit — it does not affect operation.
 
 ## Branch protection
 Public repo under `skylinetrailcomputing/`. Standard Skyline OSS protections

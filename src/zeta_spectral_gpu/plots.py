@@ -864,6 +864,98 @@ def deformed_xp_eigh_convergence_figure(
     return out
 
 
+def dirichlet_locator_figure(
+    grid: np.ndarray,
+    abs_m: np.ndarray,
+    peaks: np.ndarray,
+    true_zeros: np.ndarray,
+    *,
+    out_path: Path | str,
+    n: int | None = None,
+    modulus: int | None = None,
+    index: int | None = None,
+    height: float | None = None,
+    label: str | None = None,
+    title: str | None = None,
+) -> Path:
+    """Save the Dirichlet-``L`` mirror locator scan ``|M'_z(E)|`` (issue #60).
+
+    The teaching figure for the prime-driven locator (#25/#42). Plots the forward
+    scan ``|M'_z(E)|`` (the truncated partial sum of ``1/L(s, chi)``) against the
+    ordinate ``E``; the located peaks — the forward output, found from the character
+    alone — are marked, and the **independently computed** zeros of ``L(s, chi)``
+    are drawn as dashed vertical comparison lines. A peak landing on a line is the
+    locator pulling that zero out of the primes; the zeros are shown only to score
+    the peaks, never fed in (forward, not inverse). Pass ``height`` to draw the
+    peak-detection threshold as a dotted guide. ``n`` / ``modulus`` / ``index``
+    only label the title. Returns the path written.
+    """
+    grid = np.asarray(grid, dtype=np.float64)
+    abs_m = np.asarray(abs_m, dtype=np.float64)
+    peaks = np.asarray(peaks, dtype=np.float64)
+    true_zeros = np.asarray(true_zeros, dtype=np.float64)
+
+    fig, ax = plt.subplots(figsize=(9.0, 4.5))
+    ax.plot(
+        grid,
+        abs_m,
+        color="#5b9bd5",
+        lw=1.3,
+        label=label or r"locator $|M'_z(E)|$",
+    )
+    # Independent L-zeros: dashed vertical comparison lines (scoring only).
+    for i, z in enumerate(true_zeros):
+        ax.axvline(
+            z,
+            color="#c0392b",
+            lw=1.0,
+            ls="--",
+            alpha=0.7,
+            label=r"independent $L(s,\chi)$ zeros" if i == 0 else None,
+        )
+    # Located peaks: the forward output, marked at their scan height.
+    if peaks.size:
+        peak_h = np.interp(peaks, grid, abs_m)
+        ax.plot(
+            peaks,
+            peak_h,
+            ls="none",
+            marker="v",
+            ms=8,
+            color="#27ae60",
+            label="located peaks (forward)",
+        )
+    if height is not None:
+        ax.axhline(
+            height,
+            color="#7f7f7f",
+            lw=1.0,
+            ls=":",
+            alpha=0.7,
+            label="peak threshold",
+        )
+    ax.set_xlabel(r"ordinate $E$  (critical line $s = 1/2 + iE$)")
+    ax.set_ylabel(r"$|M'_z(E)|$")
+    ax.set_xlim(float(grid[0]), float(grid[-1]))
+    ax.set_ylim(bottom=0.0)
+    if title is None:
+        if modulus is not None:
+            idx = "" if index is None else f", index {index}"
+            nstr = "" if n is None else f", $n={n:,}$ mirrors"
+            title = rf"Dirichlet-$L$ mirror locator: $\chi$ mod {modulus}{idx}{nstr}"
+        else:
+            title = "Dirichlet-$L$ mirror locator"
+    ax.set_title(title)
+    ax.legend(loc="upper right", fontsize=8)
+    fig.tight_layout()
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out
+
+
 def pair_correlation_figure(
     hist: np.ndarray,
     bin_width: float,

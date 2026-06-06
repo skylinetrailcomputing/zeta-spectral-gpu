@@ -198,6 +198,78 @@ def normalizable_amplitude(
     )
 
 
+# --- RH by contradiction (Sierra sec. XII C): a zero off the line cannot exist --
+
+
+def offline_mobius_sum(
+    E: float,
+    truncations: np.ndarray,
+    *,
+    sigma_c: float,
+    e_c: float,
+) -> np.ndarray:
+    """``M_z(x)`` for a *hypothetical* zero ``rho_c = sigma_c + i e_c`` off the line.
+
+    Sierra's RH-by-contradiction argument (sec. XII C, eq. 12.35): if zeta had a
+    zero at ``rho_c`` with ``sigma_c > 1/2``, the truncated Moebius sum would be
+    dominated by the residues at ``rho_c`` and its conjugate,
+
+        M_z(x) -> x^{rho_c - z} / ((rho_c - z) zeta'(rho_c))
+                + x^{conj(rho_c) - z} / ((conj(rho_c) - z) zeta'(conj(rho_c))),
+
+    with ``z = 1/2 + iE``. Since ``Re(rho_c - z) = sigma_c - 1/2 > 0``, ``|M_z(x)|``
+    grows *polynomially* like ``x^{sigma_c - 1/2}`` -- in contrast to the ``log x``
+    growth at an on-line zero (eq. 12.30). That fast growth makes the eigenstate
+    non-normalizable for *every* self-adjoint extension ``vartheta``
+    (:func:`norm_partial_sums`), contradicting the self-adjointness of
+    ``H_vartheta`` -- the heuristic "proof" of the Riemann hypothesis.
+
+    Forward, not inverse: ``rho_c`` is a *counterfactual* we plant to probe the
+    structure, and ``zeta'(rho_c)`` is just an explicit-function evaluation at that
+    hypothetical point -- no true zero of zeta is consumed.
+    """
+    import mpmath as mp
+
+    z = complex(0.5, E)
+    rho = complex(sigma_c, e_c)
+    zp = complex(mp.zeta(mp.mpc(sigma_c, e_c), derivative=1))
+    x = np.asarray(truncations, dtype=np.float64)
+    term = x ** (rho - z) / ((rho - z) * zp)
+    term_conj = x ** (rho.conjugate() - z) / ((rho.conjugate() - z) * zp.conjugate())
+    return term + term_conj
+
+
+def norm_partial_sums(
+    mobius_values: np.ndarray,
+    *,
+    eps: float = 0.25,
+    vartheta: float = 0.0,
+) -> np.ndarray:
+    """Cumulative norm estimate ``N_z(N)`` (Sierra eq. 12.14) from ``M_z(1..N)``.
+
+        N_z(N) = sum_{n=1}^{N} (1/n) [ e^{-2 eps |M_n|} (1 + cos(vartheta - Phi_n))
+                                     + e^{+2 eps |M_n|} (1 - cos(vartheta - Phi_n)) ],
+
+    with ``M_n = mobius_values[n-1]`` and ``Phi_n = -arg(M_n)`` (eq. 12.13). The
+    second (``e^{+2 eps|M|}``) mode is killed only if ``|M_n|`` diverges fast enough
+    *and* ``Phi_n -> vartheta`` (eq. 12.19): the on-line zero with ``vartheta`` tuned
+    to eq. 12.33 gives a finite norm (eq. 12.34). For an off-line zero
+    (:func:`offline_mobius_sum`) ``|M_n| ~ n^{sigma_c-1/2}`` grows while ``Phi_n``
+    keeps oscillating, so no ``vartheta`` can cancel the growing mode and ``N_z``
+    diverges -- the contradiction with self-adjointness. Returns the running
+    cumulative sum so (non)convergence is visible.
+    """
+    m = np.asarray(mobius_values)
+    abs_m = np.abs(m)
+    phi = -np.angle(m)
+    n = np.arange(1, m.size + 1, dtype=np.float64)
+    c = np.cos(vartheta - phi)
+    terms = (
+        np.exp(-2.0 * eps * abs_m) * (1.0 + c) + np.exp(2.0 * eps * abs_m) * (1.0 - c)
+    ) / n
+    return np.cumsum(terms)
+
+
 # --- Explicit functions used for VALIDATION only (Piece B; never zero-lookup) ---
 #
 # theta(E) (Riemann–Siegel) and sign Z'(E) (Hardy) are elementary functions of a

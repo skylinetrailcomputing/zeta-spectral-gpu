@@ -40,3 +40,16 @@ def test_pair_correlation_figure_writes_png(tmp_path):
     )
     assert out.exists()
     assert out.read_bytes()[:8] == _PNG_MAGIC
+
+
+def test_rigidity_figure_writes_png(tmp_path):
+    from zeta_spectral_gpu import spacing
+
+    lengths = np.geomspace(1.0, 30.0, 20)
+    sigma2 = spacing.gue_number_variance(lengths)
+    delta3 = spacing.gue_delta3(lengths)
+    out = plots.rigidity_figure(
+        lengths, sigma2, delta3, n_levels=100_000, out_path=tmp_path / "rig.png"
+    )
+    assert out.exists()
+    assert out.read_bytes()[:8] == _PNG_MAGIC

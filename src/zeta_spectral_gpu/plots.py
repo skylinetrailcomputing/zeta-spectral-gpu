@@ -72,6 +72,83 @@ def spacing_histogram_figure(
     return out
 
 
+def rigidity_figure(
+    lengths: np.ndarray,
+    sigma2: np.ndarray,
+    delta3: np.ndarray,
+    *,
+    n_levels: int,
+    out_path: Path | str,
+    saturation_l: float | None = None,
+    title: str | None = None,
+    label: str = "Riemann zeros",
+) -> Path:
+    """Save the two rigidity statistics vs their GUE and Poisson references.
+
+    Left panel: number variance ``Sigma^2(L)``; right panel: Dyson-Mehta
+    ``Delta_3(L)``. Both on a log-``L`` axis, with the exact GUE curves (sine
+    kernel + its Mehta transform) and the Poisson nulls (``L`` and ``L/15``).
+
+    The zeros track GUE only up to the Berry saturation scale
+    ``L* ~ ln(T/2pi) / pi`` (drawn if ``saturation_l`` is given); beyond it the
+    arithmetic (prime) contributions make them saturate *below* the GUE
+    logarithm — more rigid than GUE at long range. The y-axes are scaled to the
+    GUE/empirical detail, so the linear Poisson nulls deliberately leave the
+    frame. Returns the path written.
+    """
+    L = np.asarray(lengths, dtype=np.float64)
+    sigma2 = np.asarray(sigma2, dtype=np.float64)
+    delta3 = np.asarray(delta3, dtype=np.float64)
+    grid = np.geomspace(L.min(), L.max(), 400)
+
+    fig, (ax_v, ax_d) = plt.subplots(1, 2, figsize=(11.0, 4.5))
+
+    panels = (
+        (ax_v, sigma2, spacing.gue_number_variance(grid), grid, r"\Sigma^2(L)"),
+        (ax_d, delta3, spacing.gue_delta3(grid), grid / 15.0, r"\Delta_3(L)"),
+    )
+    for ax, empirical, gue_curve, poisson_curve, sym in panels:
+        ax.plot(
+            L,
+            empirical,
+            color="#5b9bd5",
+            lw=1.4,
+            marker="o",
+            ms=3,
+            label=f"{label} (N={n_levels:,})",
+        )
+        ax.plot(grid, gue_curve, color="#c0392b", lw=2, label="GUE")
+        ax.plot(grid, poisson_curve, color="#27ae60", lw=2, ls="--", label="Poisson")
+        if saturation_l is not None and L.min() <= saturation_l <= L.max():
+            ax.axvline(
+                saturation_l,
+                color="#7f7f7f",
+                lw=1.2,
+                ls=":",
+                label=r"Berry $L_*\approx\ln(T/2\pi)/\pi$",
+            )
+        ax.set_xscale("log")
+        ax.set_xlabel("window length $L$ (mean spacings)")
+        # Scale to the GUE/empirical detail; the linear Poisson null runs off-frame.
+        top = 1.35 * max(float(gue_curve[-1]), float(np.nanmax(empirical)))
+        ax.set_ylim(0.0, top)
+        ax.legend(loc="upper right", fontsize=8)
+
+    ax_v.set_ylabel(r"number variance $\Sigma^2(L)$")
+    ax_v.set_title(r"Number variance $\Sigma^2(L)$")
+    ax_d.set_ylabel(r"spectral rigidity $\Delta_3(L)$")
+    ax_d.set_title(r"Dyson--Mehta $\Delta_3(L)$")
+
+    fig.suptitle(title or "Spectral rigidity of the Riemann zeros vs GUE")
+    fig.tight_layout()
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out
+
+
 def pair_correlation_figure(
     hist: np.ndarray,
     bin_width: float,

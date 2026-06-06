@@ -78,7 +78,10 @@ truncating to primes/orbits up to a cutoff `P` should make RMT-tracking extend t
 range set by the longest orbit `log P` — a saturation scale mirroring #15's Berry
 scale `L* ≈ ln(T/2π)/π`. This is the fluctuation content the locator could not
 deliver; spun out as the open spike **#44** (a real lift: needs a resonance /
-complex-pole search, not `eigh`).
+complex-pole search, not `eigh`). The payoff is genuinely uncertain — it may just
+reproduce the known Montgomery/GUE story, and even constructing a finite-`ε`
+density for the *prime* model is non-trivial — so #44 is gated behind a go/no-go
+spike before any build.
 
 ## Reproduce
 

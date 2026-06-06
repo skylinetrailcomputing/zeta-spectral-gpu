@@ -256,6 +256,161 @@ def ccm_convergence_figure(
     return out
 
 
+def ccm_precision_wall_figure(
+    x_values: np.ndarray,
+    eps_mpmath: np.ndarray,
+    eps_fp64: np.ndarray,
+    *,
+    N: int,
+    out_path: Path | str,
+    cond_mpmath: np.ndarray | None = None,
+    cond_fp64: np.ndarray | None = None,
+    title: str | None = None,
+) -> Path:
+    """Save the precision-wall figure: where fp64/GPU falls off the eigensolve.
+
+    Left panel: the minimal eigenvalue ``epsilon_N`` versus the prime cutoff ``x``
+    — the extended-precision (mpmath) value plummets geometrically while the fp64
+    ``eigh`` (cuSOLVER) value flattens out at the ``~1e-13`` roundoff floor. Right
+    panel (optional): the condition number ``sigma_max / sigma_min``, which the
+    true ``~1/epsilon_N`` sends to ``1e60+`` while fp64 saturates near ``1e16``.
+
+    This is the empirical shadow of the limit-control problem (issue #9): the
+    convergence and conditioning of ``QW_lambda^N`` are intrinsically a
+    multiprecision computation, and the figure shows the exact cutoff past which
+    a double-precision GPU eigensolve can no longer see the answer. Returns the
+    path written.
+    """
+    x = np.asarray(x_values, dtype=np.float64)
+    two_panel = cond_mpmath is not None and cond_fp64 is not None
+    if two_panel:
+        fig, (ax_e, ax_c) = plt.subplots(1, 2, figsize=(11.0, 4.5))
+    else:
+        fig, ax_e = plt.subplots(figsize=(7.0, 4.5))
+
+    ax_e.axhline(
+        2.2e-16,
+        color="#7f7f7f",
+        lw=1.0,
+        ls=":",
+        label=r"fp64 $\epsilon\approx2.2\!\times\!10^{-16}$",
+    )
+    ax_e.semilogy(
+        x, eps_mpmath, color="#c0392b", lw=1.6, marker="o", ms=4, label="mpmath (exact)"
+    )
+    ax_e.semilogy(
+        x, eps_fp64, color="#5b9bd5", lw=1.6, marker="s", ms=4, label="fp64 eigh (GPU)"
+    )
+    ax_e.set_xlabel("prime cutoff $x = \\lambda^2$")
+    ax_e.set_ylabel(r"minimal eigenvalue $\epsilon_N$")
+    ax_e.set_title(r"Convergence: $\epsilon_N \to 0$")
+    ax_e.grid(True, which="both", ls=":", alpha=0.4)
+    ax_e.legend(loc="upper right", fontsize=8)
+
+    if two_panel:
+        ax_c.semilogy(
+            x,
+            np.asarray(cond_mpmath, dtype=np.float64),
+            color="#c0392b",
+            lw=1.6,
+            marker="o",
+            ms=4,
+            label="mpmath (exact)",
+        )
+        ax_c.semilogy(
+            x,
+            np.asarray(cond_fp64, dtype=np.float64),
+            color="#5b9bd5",
+            lw=1.6,
+            marker="s",
+            ms=4,
+            label="fp64 eigh (GPU)",
+        )
+        ax_c.set_xlabel("prime cutoff $x = \\lambda^2$")
+        ax_c.set_ylabel(r"condition number $\sigma_{\max}/\sigma_{\min}$")
+        ax_c.set_title("Conditioning: the limit-control shadow")
+        ax_c.grid(True, which="both", ls=":", alpha=0.4)
+        ax_c.legend(loc="upper left", fontsize=8)
+
+    fig.suptitle(
+        title or f"CCM precision wall: fp64 cannot reach the spectrum ($N={N}$)"
+    )
+    fig.tight_layout()
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out
+
+
+def ccm_rigidity_vs_lambda_figure(
+    lengths: np.ndarray,
+    sigma2_by_x: dict[float, np.ndarray],
+    delta3_by_x: dict[float, np.ndarray],
+    *,
+    out_path: Path | str,
+    title: str | None = None,
+) -> Path:
+    """Save rigidity vs window length for a family of prime cutoffs ``x``.
+
+    One curve per cutoff ``x = lambda^2`` in each panel (number variance left,
+    Dyson-Mehta ``Delta_3`` right), shaded light (small ``x``) to dark (large
+    ``x``), against the exact GUE references. This is the #9 forward prediction:
+    the operator is built from the von Mangoldt sum over ``p <= x``, so as ``x``
+    grows (more primes) the computed spectrum should *track GUE out to larger
+    ``L`` before saturating* — the finite-cutoff analogue of how a higher height
+    ``T`` pushes the Berry scale ``L* ~ ln(T/2pi)/pi`` outward for the real zeros.
+
+    Finite-dimension caveat (per the #15/#20 cross-links): at ``N ~ 120`` only a
+    few-dozen levels exist and the empirical unfolding suppresses the *absolute*
+    rigidity, so the readout is the **cross-``x`` trend**, not the level-vs-GUE
+    offset. Returns the path written.
+    """
+    L = np.asarray(lengths, dtype=np.float64)
+    grid = np.geomspace(L.min(), L.max(), 400)
+    x_values = sorted(sigma2_by_x)
+    cmap = plt.get_cmap("viridis")
+    x_span = (x_values[-1] - x_values[0]) or 1.0
+
+    fig, (ax_v, ax_d) = plt.subplots(1, 2, figsize=(11.0, 4.5))
+    for ax, by_x, gue_curve in (
+        (ax_v, sigma2_by_x, spacing.gue_number_variance(grid)),
+        (ax_d, delta3_by_x, spacing.gue_delta3(grid)),
+    ):
+        for xv in x_values:
+            ax.plot(
+                L,
+                np.asarray(by_x[xv], dtype=np.float64),
+                color=cmap(0.12 + 0.78 * (xv - x_values[0]) / x_span),
+                lw=1.4,
+                marker="o",
+                ms=3,
+                label=f"$x={xv:g}$",
+            )
+        ax.plot(grid, gue_curve, color="#c0392b", lw=2, ls="--", label="GUE")
+        ax.set_xscale("log")
+        ax.set_xlabel("window length $L$ (mean spacings)")
+        ax.set_ylim(bottom=0.0)
+        ax.legend(loc="upper left", fontsize=8, ncol=2)
+
+    ax_v.set_ylabel(r"number variance $\Sigma^2(L)$")
+    ax_v.set_title(r"Number variance $\Sigma^2(L)$")
+    ax_d.set_ylabel(r"spectral rigidity $\Delta_3(L)$")
+    ax_d.set_title(r"Dyson--Mehta $\Delta_3(L)$")
+
+    fig.suptitle(
+        title or r"CCM operator: does GUE-tracking extend with the prime cutoff $x$?"
+    )
+    fig.tight_layout()
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out
+
+
 def deformed_xp_staircase_figure(
     spectrum: np.ndarray,
     *,

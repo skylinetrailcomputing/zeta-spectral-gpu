@@ -39,7 +39,7 @@ forward side of that line.
 | Phase | What | Status |
 |---|---|---|
 | **Warm-up** | Spacing / pair-correlation / universality statistics on large zero sets and candidate spectra, on the GPU. Extends `wedgetrigfunctions`' `gue_spacing.py` and scales it. Well-posed, falsifiable, embarrassingly parallel. | 🟢 core statistics landed (spacing, pair-correlation, rigidity); stretch experiments in progress |
-| **Flagship** | Reimplement the **Connes–Consani–Moscovici finite-cutoff spectral-triple operators** (rank-one perturbation of a scaling operator; the matrix is the Weil explicit-formula quadratic form, whose prime content is the Euler/von-Mangoldt sum over primes `p ≤ x = λ²`) and study spectral convergence to the low zeros as the cutoff grows. Forward, prime-driven, on the live research edge. | 🟡 operator pinned (`knowledge/ccm-operator.md`); multiprecision reference next |
+| **Flagship** | Reimplement the **Connes–Consani–Moscovici finite-cutoff spectral-triple operators** (rank-one perturbation of a scaling operator; the matrix is the Weil explicit-formula quadratic form, whose prime content is the Euler/von-Mangoldt sum over primes `p ≤ x = λ²`) and study spectral convergence to the low zeros as the cutoff grows. Forward, prime-driven, on the live research edge. | 🟢 operator pinned (`knowledge/ccm-operator.md`); multiprecision reference reproduces the source §6 table (`ccm.py`, #8); GPU fp64 assembly + λ-sweep convergence/conditioning study landed (`ccm_gpu.py`, #9) |
 
 The flagship operator definition must come from the **primary source**
 (Connes, Consani & Moscovici, *Zeta Spectral Triples*, arXiv:2511.22755, Nov
@@ -70,6 +70,13 @@ statistical experiments and **(b)** operator *assembly* (integer/fp32-friendly),
 with the delicate high-precision eigenvalue convergence kept mixed (GPU
 fp32/fp64 refinement + CPU/mpmath where precision bites). This is not "one giant
 CUDA eigensolve"; it is a sweep harness plus assembly kernels.
+
+The flagship's `ccm_gpu.py` (#9) makes that wall concrete: its fp64 matrix fill
+reproduces the mpmath assembly to ~1e-12, but the operator's minimal eigenvalue
+drops below fp64 epsilon almost immediately (≈1e-17 by cutoff `x = 5`), so a
+double-precision eigensolve can recover the spectrum only at the smallest
+cutoffs. `scripts/run_ccm_gpu.py` plots exactly where fp64 falls off, and keeps
+the extended-precision eigensolve on the CPU.
 
 ## Running
 
@@ -111,7 +118,10 @@ src/zeta_spectral_gpu/   library code
   spacing_gpu.py         GPU statistics via CuPy + the RawModule kernel
   kernels/spacing.cu     hand-written CUDA C (first kernel target)
   debruijn_newman.py     forward H_t-zero generator (mpmath) for the DBN flow
-  plots.py               matplotlib figures for the warm-up statistics
+  ccm.py                 Connes–Consani–Moscovici operator, mpmath reference (#8)
+  ccm_gpu.py             fp64 fill + conditioning probe for the CCM operator (#9)
+  kernels/ccm_assembly.cu  hand-written CUDA C for the Weil-matrix fill
+  plots.py               matplotlib figures for the warm-up + flagship statistics
 scripts/                 runnable entry points (uv run)
 tests/                   invariants, incl. GPU-vs-CPU agreement
 knowledge/               conceptual notes (why the math looks the way it does)

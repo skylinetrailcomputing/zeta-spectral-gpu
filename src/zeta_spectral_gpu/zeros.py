@@ -171,15 +171,19 @@ def load_odlyzko_ordinates(
 
 
 def load_ordinates(
-    n: int, *, source: str = "mpmath", cache_dir: Path = DATA
+    n: int | None = None, *, source: str = "mpmath", cache_dir: Path = DATA
 ) -> np.ndarray:
     """Unified ordinate accessor for the experiment scripts.
 
     ``source="mpmath"`` uses the precise-but-slow generator; any key in
     ``ODLYZKO_TABLES`` (e.g. ``"first-100k"``, ``"first-2M"``) uses the fast
-    precomputed loader. Default stays mpmath so nothing downloads by surprise.
+    precomputed loader. ``n=None`` returns the whole Odlyzko table; the mpmath
+    source requires an explicit ``n``. Default stays mpmath so nothing downloads
+    by surprise.
     """
     if source == "mpmath":
+        if n is None:
+            raise ValueError("the 'mpmath' source requires an explicit n")
         return riemann_zero_ordinates(n, cache_path=cache_dir / "riemann_zeros.csv")
     if source in ODLYZKO_TABLES:
         return load_odlyzko_ordinates(n, name=source, cache_dir=cache_dir)

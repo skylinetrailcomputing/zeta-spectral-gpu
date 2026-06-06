@@ -51,8 +51,14 @@ def pair_correlation_histogram_gpu(
     kernel(
         (blocks,),
         (threads,),
-        (x, np.int64(n), np.float64(bin_width), np.int64(n_bins),
-         np.float64(max_sep), hist),
+        (
+            x,
+            np.int64(n),
+            np.float64(bin_width),
+            np.int64(n_bins),
+            np.float64(max_sep),
+            hist,
+        ),
     )
     return cp.asnumpy(hist).astype(np.int64)
 

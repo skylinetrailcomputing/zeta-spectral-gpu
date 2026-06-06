@@ -35,9 +35,7 @@ def test_surmises_have_unit_mean():
 
 def test_nearest_neighbour_matches_diff():
     x = np.cumsum(np.abs(np.sin(np.arange(100))) + 0.1)
-    np.testing.assert_allclose(
-        spacing.nearest_neighbour_spacings(x), np.diff(x)
-    )
+    np.testing.assert_allclose(spacing.nearest_neighbour_spacings(x), np.diff(x))
 
 
 def _sorted_levels(n: int = 500, seed: int = 0) -> np.ndarray:

@@ -82,6 +82,25 @@ def nearest_neighbour_spacings_gpu(unfolded: np.ndarray) -> np.ndarray:
     return cp.asnumpy(out)
 
 
+def spacing_ratios_gpu(levels: np.ndarray) -> np.ndarray:
+    """GPU consecutive spacing ratios r̃_n. Must match spacing.spacing_ratios.
+
+    One thread per ratio via the fused ``spacing_ratios`` kernel: the raw gaps and
+    their min/max never leave the device. ``levels`` are the raw ascending levels
+    (no unfolding); returns ``len(levels) - 2`` folded ratios in ``[0, 1]``.
+    """
+    cp = _cupy()
+    x = cp.asarray(levels, dtype=cp.float64)
+    n = int(x.size)
+    out = cp.empty(n - 2, dtype=cp.float64)
+
+    kernel = _module().get_function("spacing_ratios")
+    threads = 256
+    blocks = (n + threads - 1) // threads
+    kernel((blocks,), (threads,), (x, np.int64(n), out))
+    return cp.asnumpy(out)
+
+
 # --- Long-range rigidity (Sigma^2, Delta_3) ---------------------------------
 #
 # No hand-written kernel here: the workload is a vectorized binary search

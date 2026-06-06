@@ -38,6 +38,106 @@ def poisson_surmise(s: np.ndarray | float) -> np.ndarray:
     return np.exp(-s)
 
 
+# --- Spacing-ratio statistic r̃_n (unfolding-free) ----------------------------
+#
+# Atas, Bogomolny, Giraud & Roux, PRL 110, 084101 (2013). The ratio of adjacent
+# *raw* gaps is dimensionless, so the local mean density cancels: r̃_n needs no
+# unfolding. That makes it the robust universality readout for the small-N forward
+# spectra this repo generates, where the fitted-smooth-count unfolding that P(s),
+# Σ² and Δ₃ require is the weak link (see issues #9, #20, #35).
+#
+# Closed-form normalisations Z_β of the ratio surmise (Atas 2013, eq. 5):
+#   Z_1 = 8/27 (GOE),  Z_2 = 4π/(81√3) (GUE),  Z_4 = 4π/(729√3) (GSE).
+_RATIO_SURMISE_Z = {
+    1: 8.0 / 27.0,
+    2: 4.0 * PI / (81.0 * np.sqrt(3.0)),
+    4: 4.0 * PI / (729.0 * np.sqrt(3.0)),
+}
+
+# Mean of the folded ratio r̃ = min(r, 1/r). Poisson is exact (2 ln 2 − 1); the
+# GOE/GUE/GSE values are the 3×3 *surmise* means (Atas 2013, Table I), reproduced
+# by integrating ``folded_ratio_surmise`` (asserted in the tests). These differ
+# slightly from the asymptotic large-N means (e.g. GUE_∞ ≈ 0.5996) — the surmise
+# is what the closed forms here integrate to, so it is the consistent reference.
+MEAN_RATIO_POISSON = 2.0 * np.log(2.0) - 1.0  # 0.386294...
+MEAN_RATIO_GOE = 0.5359
+MEAN_RATIO_GUE = 0.6027
+MEAN_RATIO_GSE = 0.6762
+
+
+def spacing_ratios(levels: np.ndarray) -> np.ndarray:
+    """Consecutive spacing ratios ``r̃_n = min(s_n, s_{n+1}) / max(s_n, s_{n+1})``.
+
+    ``levels`` are the *raw* ascending levels (zeros or forward eigenvalues) — do
+    **not** unfold first: the ratio of adjacent gaps ``s_n = levels[n+1] - levels[n]``
+    is scale-free, so the local density cancels and no fitted smooth count is
+    needed. Returns the ``len(levels) - 2`` ratios in ``[0, 1]`` (a perfectly rigid
+    "picket fence" gives all 1s; degenerate gaps give 0). ``s`` must be positive
+    (ascending levels); a zero gap yields ``0/0 -> nan``, surfaced not hidden.
+    """
+    x = np.asarray(levels, dtype=np.float64)
+    s = np.diff(x)
+    lo = np.minimum(s[:-1], s[1:])
+    hi = np.maximum(s[:-1], s[1:])
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return lo / hi
+
+
+def ratio_surmise(r: np.ndarray | float, beta: int) -> np.ndarray:
+    """Atas 3×3 ratio surmise ``P(r)`` on ``r in (0, inf)`` for ``beta in {1,2,4}``.
+
+        P(r) = (1/Z_β) (r + r²)^β / (1 + r + r²)^{1 + 3β/2}
+
+    (Atas 2013, eq. 5). This is the distribution of the *un-folded* ratio
+    ``r = s_{n+1}/s_n``; it is invariant under ``r -> 1/r`` in the sense
+    ``P(1/r)/r² = P(r)``, which is why folding to ``r̃`` just doubles it on (0,1).
+    """
+    r = np.asarray(r, dtype=np.float64)
+    z = _RATIO_SURMISE_Z[beta]
+    return (r + r**2) ** beta / (1.0 + r + r**2) ** (1.0 + 1.5 * beta) / z
+
+
+def folded_ratio_surmise(r: np.ndarray | float, beta: int) -> np.ndarray:
+    """Folded surmise ``P̃(r̃)`` of ``r̃ = min(r, 1/r)`` on ``[0, 1]``.
+
+    Because the un-folded surmise satisfies ``P(1/r)/r² = P(r)``, the folded
+    density is exactly ``2 P(r̃)`` on ``(0, 1)`` (and integrates to 1 there).
+    """
+    return 2.0 * ratio_surmise(r, beta)
+
+
+def poisson_ratio_surmise(r: np.ndarray | float) -> np.ndarray:
+    """Poisson (uncorrelated) ratio distribution ``P(r) = 1 / (1 + r)²`` on (0, inf).
+
+    Not the ``beta -> 0`` limit of :func:`ratio_surmise` — true Poisson gaps are
+    independent exponentials, whose ratio has this exact density.
+    """
+    r = np.asarray(r, dtype=np.float64)
+    return 1.0 / (1.0 + r) ** 2
+
+
+def folded_poisson_ratio_surmise(r: np.ndarray | float) -> np.ndarray:
+    """Folded Poisson ratio density ``P̃(r̃) = 2 / (1 + r̃)²`` on ``[0, 1]``.
+
+    Integrates to 1 with mean ``2 ln 2 − 1`` (:data:`MEAN_RATIO_POISSON`).
+    """
+    r = np.asarray(r, dtype=np.float64)
+    return 2.0 / (1.0 + r) ** 2
+
+
+def ratio_density(
+    ratios: np.ndarray, n_bins: int = 50
+) -> tuple[np.ndarray, np.ndarray]:
+    """Histogram folded ratios ``r̃ in [0, 1]`` into a probability density.
+
+    Returns ``(centres, density)`` for comparison against the folded surmises.
+    """
+    r = np.asarray(ratios, dtype=np.float64)
+    counts, edges = np.histogram(r, bins=n_bins, range=(0.0, 1.0), density=True)
+    centres = 0.5 * (edges[:-1] + edges[1:])
+    return centres, counts
+
+
 def montgomery_pair_correlation(r: np.ndarray | float) -> np.ndarray:
     """Montgomery's pair-correlation form R2(r) = 1 - (sin(pi r) / (pi r))^2.
 

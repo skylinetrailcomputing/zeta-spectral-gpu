@@ -27,9 +27,19 @@ as input?* If yes, it is curve-fitting and does not belong here.
    candidate spectra. Well-posed, falsifiable, embarrassingly parallel. **This is
    the warm-up phase** and the current scaffold target; it extends the CPU work
    in `wedgetrigfunctions202601`'s `gue_spacing.py` and scales it.
-2. **Characterising *derived* deformed-`xp` models** (Sierra's
-   `xp(1 + l^2/x^2)`-type Hamiltonians) — computing the spectra of *principled*
-   candidates, not inventing one to fit.
+2. **Characterising *derived* deformed-`xp` models** — Sierra &
+   Rodríguez-Laguna's `H = x(p + ℓ_p²/p)` on `x ≥ ℓ_x` (PRL **106**, 200201,
+   2011; arXiv:1102.5356) and its x↔p-symmetric sibling
+   `H = (x + ℓ_x²/x)(p + ℓ_p²/p)`: self-adjoint operators built from a
+   *geometric* deformation of `xp`, with neither primes nor zeros as input.
+   Their spectra reproduce the **average** Riemann zeros (the smooth Riemann–von
+   Mangoldt counting) but **none** of the GUE fluctuations — a clean forward
+   demonstration that matching the mean density is necessary but nowhere near
+   sufficient. The prime-driven cousin (Sierra's massless-Dirac / Möbius-mirror
+   model, where primes enter as periodic-orbit periods `log p`) is the more
+   ambitious forward target that *could* carry the fluctuations — a later
+   contrast to the flagship, not a warm-up. We compute the spectra of
+   *principled* candidates; we never invent one to fit.
 3. **Connes–Consani–Moscovici spectral-triple operators** — a rank-one
    perturbation of a scaling operator whose matrix is the Weil explicit-formula
    quadratic form; its prime content is the von-Mangoldt/Euler sum over primes

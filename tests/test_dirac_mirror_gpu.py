@@ -79,3 +79,20 @@ def test_gpu_lfunction_weights_hook():
     a = gpu.mobius_partial_sum_gpu(ZERO_1, n, weights=weights)
     b = gpu.mobius_partial_sum_gpu(ZERO_1, n, mu=mu)
     assert abs(a - b) < 1e-12
+
+
+def test_gpu_complex_character_matches_cpu():
+    # Genuinely complex Dirichlet character (mod 5) -> complex chi*mu weights ->
+    # the weighted_locator kernel. Must reproduce the numpy reference across the
+    # grid (the house GPU-vs-CPU rule), including the asymmetric negative-E zeros.
+    pytest.importorskip("cupy")
+    from zeta_spectral_gpu import dirichlet as dl
+
+    chi5 = dl.dirichlet_character(5, 1)
+    n = 1500
+    w = dl.lfunction_weights(chi5, n)
+    assert w.dtype == np.complex128
+    grid = np.arange(-5.0, 18.0, 0.05)
+    g = gpu.mobius_partial_sum_gpu(grid, n, weights=w)
+    c = dm.mobius_partial_sum(grid, n, weights=w)
+    np.testing.assert_allclose(g, c, rtol=0, atol=1e-9)

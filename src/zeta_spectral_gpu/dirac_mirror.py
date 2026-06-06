@@ -99,9 +99,12 @@ def mobius_partial_sum(
 
     Vectorised over ``E`` (fp64 ``complex128``). ``c(k)`` defaults to ``mu(k)``
     (zeta); pass ``weights = chi(k) mu(k)`` for a Dirichlet ``L``-function
-    (eq. 13.6 / 179). The series is the truncated Dirichlet series of
-    ``1/zeta(sigma+iE)`` (eq. 12.11): ``|M'_z(n)|`` grows with ``n`` at a zero on
-    the critical line ``sigma = 1/2`` and stays bounded / oscillates otherwise.
+    (eq. 13.6 / 14.9 — see :func:`dirichlet.lfunction_weights`). Real ``weights``
+    (zeta, principal/quadratic characters) stay real; a genuinely complex
+    character gives ``complex128`` weights, handled transparently. The series is
+    the truncated Dirichlet series of ``1/zeta(sigma+iE)`` (or ``1/L``, eq. 12.11):
+    ``|M'_z(n)|`` grows with ``n`` at a zero on the critical line ``sigma = 1/2``
+    and stays bounded / oscillates otherwise.
 
     No boundary phase ``vartheta`` and no zeros enter — this is the prime-only
     object the zeros are read *off* of.
@@ -113,7 +116,7 @@ def mobius_partial_sum(
             mu = mobius_sieve(n)
         weights = mu[1 : n + 1].astype(np.float64)
     else:
-        weights = np.asarray(weights[:n], dtype=np.float64)
+        weights = np.asarray(weights[:n])  # preserve real/complex dtype (L-functions)
     # k^{-(sigma+iE)} = k^{-sigma} * exp(-iE ln k); outer over (E, k).
     amp = weights * k**-sigma  # shape (n,)
     logk = np.log(k)  # shape (n,)

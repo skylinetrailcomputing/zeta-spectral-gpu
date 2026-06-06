@@ -100,5 +100,4 @@ data/                    generated/cached zeros (gitignored)
 
 ## License
 
-TODO — decide before the first tag (MIT or Apache-2.0 are the likely picks).
-Until then, all rights reserved by Skyline Trail Computing LLC.
+[MIT](LICENSE) © 2026 Skyline Trail Computing LLC.

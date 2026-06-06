@@ -30,9 +30,7 @@ def main() -> None:
     ap.add_argument("--no-gpu", action="store_true", help="force the CPU path")
     args = ap.parse_args()
 
-    tau = zeros.riemann_zero_ordinates(
-        args.n, cache_path=DATA / "riemann_zeros.csv"
-    )
+    tau = zeros.riemann_zero_ordinates(args.n, cache_path=DATA / "riemann_zeros.csv")
     unfolded = zeros.unfold(tau)
 
     use_gpu = not args.no_gpu

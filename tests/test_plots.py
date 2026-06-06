@@ -64,3 +64,27 @@ def test_rigidity_figure_writes_png(tmp_path):
     )
     assert out.exists()
     assert out.read_bytes()[:8] == _PNG_MAGIC
+
+
+def test_ccm_rtilde_vs_cutoff_figure_writes_png(tmp_path):
+    xs = [6, 9, 12, 14]
+    rtilde_full = {6: 0.82, 9: 0.79, 12: 0.74, 14: 0.71}
+    rtilde_low = {6: 0.70, 9: 0.65, 12: 0.62, 14: 0.62}
+    # Without the push-N panel (single-axis branch).
+    out = plots.ccm_rtilde_vs_cutoff_figure(
+        xs, rtilde_full, rtilde_low, low_count=40, out_path=tmp_path / "rt.png"
+    )
+    assert out.exists()
+    assert out.read_bytes()[:8] == _PNG_MAGIC
+    # With the push-N panel (two-axis branch).
+    pushn = {"x": 14, "rtilde_by_N": {60: 0.62, 120: 0.69, 180: 0.72, 240: 0.75}}
+    out2 = plots.ccm_rtilde_vs_cutoff_figure(
+        xs,
+        rtilde_full,
+        rtilde_low,
+        low_count=40,
+        pushn=pushn,
+        out_path=tmp_path / "rt_pushn.png",
+    )
+    assert out2.exists()
+    assert out2.read_bytes()[:8] == _PNG_MAGIC

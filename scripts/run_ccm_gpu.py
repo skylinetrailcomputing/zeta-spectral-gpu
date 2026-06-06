@@ -15,14 +15,19 @@ only to *characterise* the output):
 2. ``universality`` — the **cross-lambda forward prediction** (the #15/#20
    cross-links). For each ``x`` take the operator's computed spectrum (mpmath),
    unfold it by its own counting function, and run the warm-up universality
-   diagnostics (#5 spacing, #6 pair correlation, #15 Sigma^2 / Delta_3, on the GPU).
-   The prediction: as ``x`` grows (more primes) the spectrum should track GUE out
-   to larger ``L`` before saturating. At ``N ~ 120`` only the cross-``x`` *trend* is
-   trustworthy, not the absolute level-vs-GUE offset (the unfolding suppresses it).
+   diagnostics (#5 spacing, #6 pair correlation, #15 Sigma^2 / Delta_3, on the GPU),
+   plus the **unfolding-free spacing ratio ``r~``** (Atas 2013; #18/#35) over the
+   full spectrum and the low (zero-tracking) window. The prediction: as ``x`` grows
+   (more primes) the operator's local rigidity relaxes toward GUE and the
+   GUE-tracking range extends. ``r~`` sidesteps the finite-``N`` unfolding artifact
+   that washes out ``Sigma^2``; ``--pushn`` adds the control showing why enlarging
+   ``N`` (the pole-locked tail) is the wrong lever. See
+   ``knowledge/ccm-universality.md``.
 
     uv run --extra gpu python scripts/run_ccm_gpu.py                 # both studies
     uv run --extra gpu python scripts/run_ccm_gpu.py --mode wall
-    uv run --extra gpu python scripts/run_ccm_gpu.py --mode universality --x 6 9 12 14
+    uv run python scripts/run_ccm_gpu.py --mode universality \
+        --x 6 9 12 14 18 24 --N 160 --pushn      # the #18 r~ cross-cutoff read
 
 Spectra and the conditioning sweep are cached under ``data/`` keyed by
 ``(N, x, dps)`` so reruns (and replotting) are instant. The mpmath eigensolve is
@@ -135,9 +140,17 @@ def universality_study(
     dps: int,
     use_gpu: bool,
     unfold_degree: int = 6,
+    low_count: int = 40,
     refresh: bool = False,
 ) -> dict:
-    """Spectrum -> own-count unfold -> rigidity statistics, per cutoff ``x``."""
+    """Spectrum -> rigidity statistics, per cutoff ``x``.
+
+    Two readouts. ``Sigma^2``/``Delta_3`` need the spectrum unfolded by its own
+    smooth count (the finite-``N`` weak link, #9/#20). The **spacing ratio**
+    ``<r~>`` (Atas 2013; :func:`spacing.spacing_ratios`) is taken on the *raw*
+    levels — unfolding-free — over the full spectrum and over the low ``low_count``
+    (zero-tracking) window, so it sidesteps that artifact (#18/#35).
+    """
     if use_gpu:
         from zeta_spectral_gpu import spacing_gpu
 
@@ -151,15 +164,23 @@ def universality_study(
     sigma2_by_x: dict[float, np.ndarray] = {}
     delta3_by_x: dict[float, np.ndarray] = {}
     spacings_by_x: dict[int, np.ndarray] = {}
+    rtilde_full: dict[int, float] = {}
+    rtilde_low: dict[int, float] = {}
     for x in x_values:
         t0 = time.perf_counter()
         spec = cached_spectrum(N, x, dps, refresh=refresh)
+        spec_sorted = np.sort(spec)
         unfolded = debruijn_newman.empirical_unfold(spec, degree=unfold_degree)
         sigma2_by_x[x] = n_var(unfolded, lengths)
         delta3_by_x[x] = d3(unfolded, lengths)
         spacings_by_x[x] = spacing.nearest_neighbour_spacings(np.sort(unfolded))
+        rtilde_full[x] = float(np.nanmean(spacing.spacing_ratios(spec_sorted)))
+        nlo = min(spec_sorted.size, low_count)
+        rtilde_low[x] = float(np.nanmean(spacing.spacing_ratios(spec_sorted[:nlo])))
         print(
-            f"  x={x:>2}: {spec.size} levels, span {unfolded.max() - unfolded.min():.1f}"
+            f"  x={x:>2}: {spec.size} levels, span "
+            f"{unfolded.max() - unfolded.min():.1f}   "
+            f"<r~> full={rtilde_full[x]:.4f} low{nlo}={rtilde_low[x]:.4f}"
             f"  [{time.perf_counter() - t0:.0f}s]"
         )
     return {
@@ -167,7 +188,29 @@ def universality_study(
         "sigma2_by_x": sigma2_by_x,
         "delta3_by_x": delta3_by_x,
         "spacings_by_x": spacings_by_x,
+        "rtilde_full": rtilde_full,
+        "rtilde_low": rtilde_low,
+        "low_count": low_count,
     }
+
+
+def pushn_rtilde_study(
+    x: int, n_values: list[int], *, dps: int, refresh: bool = False
+) -> dict:
+    """``<r~>`` of the full CCM spectrum vs the truncation ``N`` at fixed cutoff ``x``.
+
+    The negative control for the universality read (#18): enlarging ``N`` adds
+    high-energy levels where the zero density outruns the pole spacing ``2 pi / L``,
+    so the secular roots become pole-locked (picket-like) and ``<r~>`` climbs *away*
+    from GUE. Confirms the lever is the prime cutoff ``x``, not the matrix size.
+    """
+    print(f"\n[push-N] <r~> of the full spectrum vs N at fixed x={x}")
+    rtilde_by_N: dict[int, float] = {}
+    for n in n_values:
+        spec = np.sort(cached_spectrum(n, x, dps, refresh=refresh))
+        rtilde_by_N[n] = float(np.nanmean(spacing.spacing_ratios(spec)))
+        print(f"  N={n:>3}: {spec.size} levels  <r~>={rtilde_by_N[n]:.4f}")
+    return {"x": x, "rtilde_by_N": rtilde_by_N}
 
 
 # ----------------------------------------------------------------------------
@@ -192,6 +235,25 @@ def main() -> None:
     ap.add_argument("--wall-N", type=int, default=60, help="N for the wall sweep")
     ap.add_argument("--wall-dps", type=int, default=150, help="dps for the wall sweep")
     ap.add_argument("--refresh", action="store_true", help="ignore caches")
+    ap.add_argument(
+        "--low-count",
+        type=int,
+        default=40,
+        help="levels in the low (zero-tracking) r~ window",
+    )
+    ap.add_argument(
+        "--pushn",
+        action="store_true",
+        help="add the push-N r~ control study (slow; large-N spectra)",
+    )
+    ap.add_argument("--pushn-x", type=int, default=14, help="fixed cutoff for --pushn")
+    ap.add_argument(
+        "--pushn-N",
+        type=int,
+        nargs="+",
+        default=[60, 120, 180, 240],
+        help="truncations N for --pushn",
+    )
     ap.add_argument("--out-dir", type=Path, default=DATA)
     args = ap.parse_args()
 
@@ -225,7 +287,12 @@ def main() -> None:
         xs = args.x or [6, 9, 12, 14]
         print(f"\n[universality] spectrum -> unfold -> rigidity  (N={args.N}, x={xs})")
         study = universality_study(
-            xs, N=args.N, dps=args.dps, use_gpu=use_gpu, refresh=args.refresh
+            xs,
+            N=args.N,
+            dps=args.dps,
+            use_gpu=use_gpu,
+            low_count=args.low_count,
+            refresh=args.refresh,
         )
         out = plots.ccm_rigidity_vs_lambda_figure(
             study["lengths"],
@@ -243,6 +310,25 @@ def main() -> None:
             title=f"CCM operator spacing vs GUE ($x={x_top}$, $N={args.N}$)",
         )
         print(f"  spacing figure  -> {sp}")
+        # The unfolding-free spacing-ratio readout (#18/#35): r~ vs cutoff, plus
+        # the optional push-N control (r~ vs N at fixed x -> pole-locked tail).
+        pushn = (
+            pushn_rtilde_study(
+                args.pushn_x, args.pushn_N, dps=args.dps, refresh=args.refresh
+            )
+            if args.pushn
+            else None
+        )
+        rt = plots.ccm_rtilde_vs_cutoff_figure(
+            xs,
+            study["rtilde_full"],
+            study["rtilde_low"],
+            low_count=study["low_count"],
+            pushn=pushn,
+            out_path=args.out_dir / "ccm_rtilde_vs_cutoff.png",
+            title=f"CCM operator: spacing-ratio rigidity ($N={args.N}$)",
+        )
+        print(f"  r~ figure       -> {rt}")
 
 
 if __name__ == "__main__":

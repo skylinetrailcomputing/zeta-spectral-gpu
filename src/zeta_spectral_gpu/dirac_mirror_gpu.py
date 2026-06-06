@@ -60,9 +60,11 @@ def _amp_logk(
 
     Mirrors the precompute in :func:`dirac_mirror.mobius_partial_sum`: ``c(k)``
     defaults to ``mu(k)`` (zeta); pass ``weights = chi(k) mu(k)`` for a Dirichlet
-    ``L``-function. This is the only number-theoretic input the kernel consumes
-    (forward, not inverse), and it is ``O(n)`` -- cheap next to the ``O(len(E)*n)``
-    kernel, so it stays on the host.
+    ``L``-function. ``amp`` keeps the weights' dtype -- real for zeta and
+    real characters (the fast ``mobius_locator`` path), ``complex128`` for a
+    genuinely complex character (the ``weighted_locator`` path). This is the only
+    number-theoretic input the kernel consumes (forward, not inverse), and it is
+    ``O(n)`` -- cheap next to the ``O(len(E)*n)`` kernel, so it stays on the host.
     """
     k = np.arange(1, n + 1, dtype=np.float64)
     if weights is None:
@@ -70,7 +72,7 @@ def _amp_logk(
             mu = dirac_mirror.mobius_sieve(n)
         weights = mu[1 : n + 1].astype(np.float64)
     else:
-        weights = np.asarray(weights[:n], dtype=np.float64)
+        weights = np.asarray(weights[:n])  # preserve real/complex dtype (L-functions)
     return weights * k**-sigma, np.log(k)
 
 
@@ -98,21 +100,26 @@ def mobius_partial_sum_gpu(
     E_flat = np.ascontiguousarray(np.atleast_1d(E_arr).ravel())
     amp, logk = _amp_logk(n, sigma, weights, mu)
 
-    amp_d = cp.asarray(amp)
     logk_d = cp.asarray(logk)
     E_d = cp.asarray(E_flat)
     n_e = int(E_flat.size)
     out_re = cp.empty(n_e, dtype=cp.float64)
     out_im = cp.empty(n_e, dtype=cp.float64)
-
-    kernel = _module().get_function("mobius_locator")
     threads = 256
     blocks = (n_e + threads - 1) // threads
-    kernel(
-        (blocks,),
-        (threads,),
-        (amp_d, logk_d, np.int64(n), E_d, np.int64(n_e), out_re, out_im),
-    )
+
+    if np.iscomplexobj(amp):
+        # Complex character (Dirichlet L): one extra real array for Im(amp).
+        amp_re = cp.asarray(np.ascontiguousarray(amp.real))
+        amp_im = cp.asarray(np.ascontiguousarray(amp.imag))
+        kernel = _module().get_function("weighted_locator")
+        args = (amp_re, amp_im, logk_d, np.int64(n), E_d, np.int64(n_e), out_re, out_im)
+    else:
+        # Real coefficients (zeta, principal/quadratic characters): fast path.
+        amp_d = cp.asarray(np.ascontiguousarray(amp))
+        kernel = _module().get_function("mobius_locator")
+        args = (amp_d, logk_d, np.int64(n), E_d, np.int64(n_e), out_re, out_im)
+    kernel((blocks,), (threads,), args)
 
     out = cp.asnumpy(out_re) + 1j * cp.asnumpy(out_im)
     if E_arr.ndim == 0:

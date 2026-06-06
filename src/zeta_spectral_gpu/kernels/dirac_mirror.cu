@@ -52,4 +52,41 @@ __global__ void mobius_locator(
     out_im[e] = si;
 }
 
+// Same locator with COMPLEX coefficients amp[k] = amp_re[k] + i amp_im[k], for
+// the Dirichlet-L generalization (Sierra eq. 13.6): amp[k] = chi(k) mu(k) k^-sigma
+// with a genuinely complex character chi. The zeta / real-character case stays on
+// the cheaper real kernel above; here each term carries the extra Im(amp).
+//
+//   amp * exp(-i E logk) = (amp_re + i amp_im) * (c + i s),   with the same
+//   c = cos(E logk), s = -sin(E logk) from a single sincos. So
+//   Re = amp_re*c - amp_im*s,   Im = amp_re*s + amp_im*c
+// (reduces to the real kernel when amp_im = 0).
+__global__ void weighted_locator(
+    const double* __restrict__ amp_re,  // length n: Re c(k) k^{-sigma}
+    const double* __restrict__ amp_im,  // length n: Im c(k) k^{-sigma}
+    const double* __restrict__ logk,    // length n: log k
+    const long n,
+    const double* __restrict__ E,       // length n_e: energy grid
+    const long n_e,
+    double* __restrict__ out_re,        // length n_e: Re M'_z
+    double* __restrict__ out_im)        // length n_e: Im M'_z
+{
+    const long e = blockIdx.x * (long)blockDim.x + threadIdx.x;
+    if (e >= n_e) return;
+
+    const double Ee = E[e];
+    double sr = 0.0;
+    double si = 0.0;
+    for (long k = 0; k < n; ++k) {
+        double s, c;
+        sincos(-Ee * logk[k], &s, &c);
+        const double ar = amp_re[k];
+        const double ai = amp_im[k];
+        sr += ar * c - ai * s;
+        si += ar * s + ai * c;
+    }
+    out_re[e] = sr;
+    out_im[e] = si;
+}
+
 }  // extern "C"

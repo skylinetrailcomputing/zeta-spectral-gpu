@@ -14,8 +14,9 @@ __pycache__/
 *.png
 *.npy
 *.npz
-data/*.csv
-data/*.json
+
+# Downloaded / cached zero sets (Odlyzko tables, mpmath CSV caches, etc.)
+data/*
 !data/.gitkeep
 
 # OS

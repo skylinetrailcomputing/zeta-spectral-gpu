@@ -20,9 +20,9 @@ point of the project (see `README.md` and `knowledge/project-framing.md`).
   reduction paths only — the deliberate "learn CUDA" surface.
 - Style: line length **88**, `ruff format`, comments only when the *why* isn't
   obvious. Tests for new logic (`pytest`). Conventional Commits.
-- **CPU reference first:** every GPU statistic has a CPU reference (`spacing.py`)
-  and a test asserting GPU-vs-CPU agreement on small N. The GPU is for *scale*,
-  not for changing answers.
+- **CPU reference first:** every GPU statistic/operator has a CPU reference (e.g.
+  `spacing.py`, `deformed_xp.py`, `dirac_mirror.py`) and a test asserting
+  GPU-vs-CPU agreement on small N. The GPU is for *scale*, not for changing answers.
 
 ## Precision reality (don't forget)
 Dev GPU is an RTX 3090: fp64 ≈ 1/64 of fp32. Matching low zeta zeros can need
@@ -34,7 +34,10 @@ precision budget first.
 ## Environment
 uv-managed. On a fresh machine: install uv (`winget install astral-sh.uv` on
 Windows), then from the repo root `uv sync` (CPU deps) and `uv sync --extra gpu`
-(adds CuPy). uv reads `.python-version` (3.12) and provisions the interpreter
+(adds CuPy). Two further opt-in extras stay out of a plain `uv sync` and CI:
+`--extra oracle` (the `connes-cvs` flagship cross-check, dev-only) and
+`--extra accel` (`gmpy2`, faster multiprecision eigensolve). uv reads
+`.python-version` (3.12) and provisions the interpreter
 itself — no python.org / Microsoft Store Python needed. Run things via `uv run`
 (e.g. `uv run pytest`, `uv run python scripts/run_spacing.py`).
 

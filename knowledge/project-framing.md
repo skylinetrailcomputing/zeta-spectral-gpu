@@ -39,7 +39,10 @@ as input?* If yes, it is curve-fitting and does not belong here.
    model, where primes enter as periodic-orbit periods `log p`) is the more
    ambitious forward target that *could* carry the fluctuations — a later
    contrast to the flagship, not a warm-up. We compute the spectra of
-   *principled* candidates; we never invent one to fit.
+   *principled* candidates; we never invent one to fit. Both have since been
+   built — the deformed-`xp` spectrum (#23/#24/#31; [`deformed-xp.md`](deformed-xp.md))
+   and the prime-driven Möbius-mirror forward locator (#25;
+   [`dirac-mirror.md`](dirac-mirror.md)).
 3. **Connes–Consani–Moscovici spectral-triple operators** — a rank-one
    perturbation of a scaling operator whose matrix is the Weil explicit-formula
    quadratic form; its prime content is the von-Mangoldt/Euler sum over primes
@@ -50,8 +53,12 @@ as input?* If yes, it is curve-fitting and does not belong here.
 
 ## Roadmap
 
-- **Warm-up (now):** GPU spacing/pair-correlation/universality at scale. The
+- **Warm-up:** GPU spacing/pair-correlation/universality at scale (landed). The
   zeros appear only as an output being characterised.
+- **xp-Hamiltonian track (forward stretch):** spectra of *principled* `xp`-type
+  candidates — the deformed-`xp` operator and the prime-driven Möbius-mirror
+  locator (point 2 above). Built; see [`deformed-xp.md`](deformed-xp.md) and
+  [`dirac-mirror.md`](dirac-mirror.md).
 - **Flagship (after a careful read of the primary source):** reimplement the
   Connes–Consani–Moscovici finite-cutoff operators and study spectral convergence
   as the prime cutoff scales. The operator definition must come from

@@ -1,0 +1,23 @@
+# Maintainer-only (per oss-repo-policy.md)
+CLAUDE.local.md
+_private/
+
+# Python / uv
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Generated outputs
+*.png
+*.npy
+*.npz
+data/*.csv
+data/*.json
+!data/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db

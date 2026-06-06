@@ -1,0 +1,33 @@
+[project]
+name = "zeta-spectral-gpu"
+version = "0.0.1"
+description = "GPU/CUDA experiments on the spectral approach to the Riemann zeta zeros (forward problems only)."
+readme = "README.md"
+requires-python = ">=3.11"
+# license: TODO — decide before first tag (MIT or Apache-2.0).
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "mpmath>=1.3",
+    "matplotlib>=3.8",
+]
+
+[project.optional-dependencies]
+# GPU stack. The CuPy wheel MUST match the installed CUDA runtime. The dev box
+# reports a CUDA 13.2 *driver* (backward compatible with the 12.x runtime), so
+# cupy-cuda12x is the expected pick — but VERIFY `import cupy` sees the GPU
+# before trusting it. If a cupy-cuda13x wheel is what installs cleanly, use it.
+gpu = ["cupy-cuda12x"]
+
+[dependency-groups]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[tool.ruff]
+line-length = 88
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/zeta_spectral_gpu"]

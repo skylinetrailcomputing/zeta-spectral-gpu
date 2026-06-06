@@ -12,7 +12,7 @@ from pathlib import Path
 import matplotlib
 import numpy as np
 
-from . import spacing
+from . import spacing, zeros
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402  (must follow matplotlib.use)
@@ -247,6 +247,90 @@ def ccm_convergence_figure(
     ax.set_title(title or f"CCM finite-cutoff convergence to the zeros ($N={N}$)")
     ax.grid(True, which="both", ls=":", alpha=0.4)
     ax.legend(title="cutoff", loc="upper left")
+    fig.tight_layout()
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out
+
+
+def deformed_xp_staircase_figure(
+    spectrum: np.ndarray,
+    *,
+    out_path: Path | str,
+    average_zeros: np.ndarray | None = None,
+    title: str | None = None,
+) -> Path:
+    """Save the deformed-``xp`` staircase ``N(E)`` vs the smooth zero count.
+
+    Left: the computed counting function ``N(E) = #{E_k <= E}`` (step) against the
+    analytic smooth term ``N_bar(E)`` (``zeros.smooth_count``) — the forward sanity
+    check that the spectrum reproduces the *average* zero density (matching slope).
+    Optional ``average_zeros`` markers show the smooth heights the levels track.
+    Right: the analytic-unfolded nearest-neighbour spacings hugging 1 — the mean
+    density is reproduced; whether the *fluctuations* match GUE is the separate
+    question the companion statistics (#24) answer. Returns the path written.
+    """
+    E = np.sort(np.asarray(spectrum, dtype=np.float64))
+    n = E.size
+    counts = np.arange(1, n + 1)
+    grid = np.linspace(float(E[0]) * 0.6, float(E[-1]) * 1.02, 400)
+
+    fig, (ax_s, ax_d) = plt.subplots(1, 2, figsize=(11.0, 4.5))
+
+    ax_s.step(
+        E,
+        counts,
+        where="post",
+        color="#5b9bd5",
+        lw=1.6,
+        label=f"deformed-$xp$ $N(E)$ (N={n})",
+    )
+    ax_s.plot(
+        grid,
+        zeros.smooth_count(grid),
+        color="#c0392b",
+        lw=2,
+        label=r"smooth $\bar N(E)$",
+    )
+    if average_zeros is not None:
+        az = np.sort(np.asarray(average_zeros, dtype=np.float64))
+        ax_s.plot(
+            az,
+            np.arange(1, az.size + 1) - 0.5,
+            ls="none",
+            marker="v",
+            ms=5,
+            color="#7f7f7f",
+            label="average zeros",
+        )
+    ax_s.set_xlabel("$E$")
+    ax_s.set_ylabel("counting function $N(E)$")
+    ax_s.set_title("Staircase vs smooth term")
+    ax_s.legend(loc="upper left", fontsize=8)
+
+    s = np.diff(zeros.smooth_count(E))
+    ax_d.plot(
+        counts[1:],
+        s,
+        color="#5b9bd5",
+        lw=1.2,
+        marker="o",
+        ms=4,
+        label="unfolded spacings $s_n$",
+    )
+    ax_d.axhline(1.0, color="#c0392b", lw=2, ls="--", label="mean $=1$")
+    ax_d.set_xlabel("level index $n$")
+    ax_d.set_ylabel("unfolded spacing $s_n$")
+    ax_d.set_ylim(bottom=0.0)
+    ax_d.set_title("Mean density reproduced (fluctuations: #24)")
+    ax_d.legend(loc="upper right", fontsize=8)
+
+    fig.suptitle(
+        title or r"Sierra deformed-$xp$: spectrum reproduces the average zeros"
+    )
     fig.tight_layout()
 
     out = Path(out_path)

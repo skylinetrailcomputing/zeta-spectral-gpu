@@ -132,6 +132,78 @@ def test_inverse_iteration_matches_eigsy():
         assert abs(a - b) < 1e-20
 
 
+def test_reduced_eigensolve_matches_full_space():
+    # The #18 parity reduction iterates in the (N+1)-dim even block instead of the
+    # full 2N+1 space. It must reproduce the full-space inverse iteration exactly:
+    # same epsilon_N and even eigenvector, with the even block holding the GLOBAL
+    # minimum (the minimal eigenvector is even, Def. 5.3 — if the odd block ever
+    # held a smaller eigenvalue this would catch it).
+    mp.mp.dps = 80
+    L = 2 * mp.log(mp.sqrt(13))
+    for N in (8, 12):
+        A = ccm.assemble_weil_matrix(N, mp.sqrt(13))
+        red = ccm.smallest_even_eigenvector(A, N)
+        full = ccm._smallest_even_eigenvector_full(A, N)
+
+        rel = mp.mpf(10) ** (-60)
+        assert abs(red.eigenvalue - full.eigenvalue) < rel * (abs(full.eigenvalue) + 1)
+
+        # The even-block minimum equals the full dense eigsy global minimum.
+        E, _ = mp.eigsy(A)
+        gmin = E[min(range(len(E)), key=lambda i: abs(E[i]))]
+        assert abs(red.eigenvalue - gmin) < mp.mpf(10) ** (-40) * (abs(gmin) + 1)
+
+        # Eigenvectors agree up to an overall sign. Inverse iteration with a fixed
+        # iters converges the Rayleigh quotient and the extracted spectrum to the
+        # floor, but the raw eigenvector only to the gap-limited iteration level —
+        # so this is a loose sign/indexing guard; the spectrum check below is the
+        # tight equivalence gate.
+        sign = 1 if red.eigenvector[N] * full.eigenvector[N] > 0 else -1
+        worst = max(
+            abs(red.eigenvector[i] - sign * full.eigenvector[i])
+            for i in range(2 * N + 1)
+        )
+        assert worst < mp.mpf(10) ** (-12)
+
+        # Parity is structural now, so the residual is identically zero.
+        assert red.parity_residual == 0
+
+        # And the spectra extracted from each coincide far beyond truncation error.
+        spec_red = ccm.operator_eigenvalues(red.eigenvector, N, L, 4)
+        spec_full = ccm.operator_eigenvalues(full.eigenvector, N, L, 4)
+        for a, b in zip(spec_red, spec_full):
+            assert abs(a - b) < mp.mpf(10) ** (-30)
+
+
+def test_folded_secular_matches_unfolded_pointwise():
+    # The #18 fold rewrites the secular function F(z) = sum_n xi_n/(d_n - z) as the
+    # half-length even form -xi_0/z + sum_{n>=1} 2 z xi_n/(d_n^2 - z^2). It is an
+    # algebraic identity for any even xi, so equal values at generic z guarantee an
+    # identical root set. Diff the raw sum against the folded form the production
+    # operator_eigenvalues uses.
+    mp.mp.dps = 60
+    N = 20
+    L = 2 * mp.log(mp.sqrt(13))
+    d = [2 * mp.pi * n / L for n in range(-N, N + 1)]
+    xi = [mp.mpf(1) / (1 + abs(n)) ** 2 for n in range(-N, N + 1)]  # generic, even
+
+    def f_unfolded(z):
+        return mp.fsum(xi[N + n] / (d[N + n] - z) for n in range(-N, N + 1))
+
+    xi0 = xi[N]
+    xs = [xi[N + n] for n in range(1, N + 1)]
+    d2 = [(2 * mp.pi * n / L) ** 2 for n in range(1, N + 1)]
+
+    def f_folded(z):
+        zz = z * z
+        two_z = 2 * z
+        return -xi0 / z + mp.fsum(two_z * xs[i] / (d2[i] - zz) for i in range(N))
+
+    for z in (mp.mpf("0.7"), mp.mpf("3.3"), mp.mpf("11.9"), mp.mpf("-2.1")):
+        a, b = f_unfolded(z), f_folded(z)
+        assert abs(a - b) < mp.mpf(10) ** (-55) * (abs(a) + 1)
+
+
 def test_forward_spectrum_matches_ordinates():
     # The crux: the prime-built operator's spectrum reproduces the low zeros, with
     # the zeros used only to *check* the output (forward, not inverse). Even at

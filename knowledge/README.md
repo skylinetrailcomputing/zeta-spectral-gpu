@@ -18,6 +18,11 @@ top-level `CLAUDE.md`; per-session narrative lives in git history.
   oracle (#16): the documented `c=13` `λ_min` cell, frozen as a checked-in
   fixture for the CPU reference (#8) and GPU assembly (#9) to diff against, plus
   the `λ_min` vs zero-error distinction and the ~1.2–1.3 normalization factor.
+- [`ccm-universality.md`](ccm-universality.md) — the prime-cutoff rigidity trend
+  (#18): the unfolding-free spacing-ratio `r̃` read of the operator spectrum. As
+  the cutoff `x` grows the local statistics relax toward GUE and the
+  zero-tracking window converges to the real zeros' `⟨r̃⟩`; why pushing `N` is the
+  wrong lever (the pole-locked tail).
 
 The deeper mathematical background (harmonic functions → conical/Legendre
 functions → hyperbolic/Selberg spectrum → GUE statistics, and the full

@@ -495,6 +495,103 @@ def ccm_rigidity_vs_lambda_figure(
     return out
 
 
+def ccm_rtilde_vs_cutoff_figure(
+    x_values,
+    rtilde_full: dict,
+    rtilde_low: dict,
+    *,
+    low_count: int,
+    pushn: dict | None = None,
+    out_path: Path | str,
+    title: str | None = None,
+) -> Path:
+    """Save the spacing-ratio rigidity readout of the CCM spectrum (#18).
+
+    Left panel: the mean folded spacing ratio ``<r~>`` (Atas 2013) vs the prime
+    cutoff ``x = lambda^2``, for the full computed spectrum and for the low
+    (zero-tracking) window, against the GUE / Poisson / picket-fence references.
+    ``<r~>`` is **unfolding-free**, so unlike ``Sigma^2``/``Delta_3`` it is immune to
+    the finite-``N`` unfolding suppression that washed out the #9 read. The forward
+    signal is the monotone descent: as ``x`` grows (more primes) the operator's local
+    rigidity relaxes toward the zeros' GUE value (``0.6027``).
+
+    Right panel (when ``pushn`` is given): the same ``<r~>`` vs the truncation ``N``
+    at fixed ``x``. It drifts *away* from GUE, toward the picket-fence ``1.0``, as
+    ``N`` grows — the added high-energy levels are pole-locked (the zero density
+    outruns the pole spacing ``2 pi / L``), so enlarging ``N`` extends the non-GUE
+    tail rather than the GUE-tracking range. The lever is the prime cutoff, not the
+    matrix size (#18). Returns the path written.
+    """
+    xs = sorted(x_values)
+    full = [rtilde_full[x] for x in xs]
+    low = [rtilde_low[x] for x in xs]
+
+    has_push = pushn is not None
+    fig, axes = plt.subplots(
+        1,
+        2 if has_push else 1,
+        figsize=(11.0 if has_push else 6.0, 4.5),
+        squeeze=False,
+    )
+    ax = axes[0, 0]
+    ax.axhline(
+        spacing.MEAN_RATIO_GUE,
+        color="#c0392b",
+        ls="--",
+        lw=2,
+        label=r"GUE ($\langle\tilde r\rangle=0.6027$)",
+    )
+    ax.axhline(
+        spacing.MEAN_RATIO_POISSON,
+        color="#7f7f7f",
+        ls=":",
+        lw=1.5,
+        label="Poisson (0.386)",
+    )
+    ax.axhline(1.0, color="#2c3e50", ls="-.", lw=1.0, label="picket fence (1.0)")
+    ax.plot(xs, full, color="#5b9bd5", marker="o", lw=1.6, label="full spectrum")
+    ax.plot(
+        xs,
+        low,
+        color="#27ae60",
+        marker="s",
+        lw=1.6,
+        label=f"low {low_count} (zero-tracking)",
+    )
+    ax.set_xlabel(r"prime cutoff $x = \lambda^2$")
+    ax.set_ylabel(r"mean folded spacing ratio $\langle\tilde r\rangle$")
+    ax.set_title("Local rigidity relaxes toward GUE as primes grow")
+    ax.legend(fontsize=8, loc="upper right")
+
+    if has_push:
+        ax2 = axes[0, 1]
+        ns = sorted(pushn["rtilde_by_N"])
+        vals = [pushn["rtilde_by_N"][n] for n in ns]
+        ax2.axhline(spacing.MEAN_RATIO_GUE, color="#c0392b", ls="--", lw=2, label="GUE")
+        ax2.axhline(1.0, color="#2c3e50", ls="-.", lw=1.0, label="picket fence")
+        ax2.plot(
+            ns,
+            vals,
+            color="#8e44ad",
+            marker="o",
+            lw=1.6,
+            label=rf"$x={pushn['x']:g}$, full spectrum",
+        )
+        ax2.set_xlabel(r"truncation $N$ (dim $2N+1$)")
+        ax2.set_ylabel(r"$\langle\tilde r\rangle$")
+        ax2.set_title(r"Pushing $N$ drifts away from GUE (pole-locked tail)")
+        ax2.legend(fontsize=8, loc="center right")
+
+    fig.suptitle(title or r"CCM operator: spacing-ratio rigidity vs prime cutoff")
+    fig.tight_layout()
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out
+
+
 def deformed_xp_staircase_figure(
     spectrum: np.ndarray,
     *,

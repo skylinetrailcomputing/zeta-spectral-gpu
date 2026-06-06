@@ -66,6 +66,42 @@ def test_rigidity_figure_writes_png(tmp_path):
     assert out.read_bytes()[:8] == _PNG_MAGIC
 
 
+def test_dirichlet_locator_figure_writes_png(tmp_path):
+    grid = np.arange(2.0, 14.0, 0.05)
+    true_zeros = np.array([6.020949, 10.243770, 12.988056])
+    abs_m = np.zeros_like(grid)
+    for z in true_zeros:  # narrow bumps standing in for located peaks
+        abs_m += 2.0 * np.exp(-(((grid - z) / 0.12) ** 2))
+    out = plots.dirichlet_locator_figure(
+        grid,
+        abs_m,
+        true_zeros,
+        true_zeros,
+        out_path=tmp_path / "loc.png",
+        n=4000,
+        modulus=4,
+        index=1,
+        height=1.0,
+    )
+    assert out.exists()
+    assert out.read_bytes()[:8] == _PNG_MAGIC
+    assert len(out.read_bytes()) > 1000
+
+
+def test_dirichlet_locator_figure_handles_empty(tmp_path):
+    # No peaks / no comparison zeros and no modulus label -> still a valid PNG.
+    grid = np.linspace(1.0, 5.0, 50)
+    out = plots.dirichlet_locator_figure(
+        grid,
+        np.abs(np.sin(grid)),
+        np.array([]),
+        np.array([]),
+        out_path=tmp_path / "empty.png",
+    )
+    assert out.exists()
+    assert out.read_bytes()[:8] == _PNG_MAGIC
+
+
 def test_ccm_rtilde_vs_cutoff_figure_writes_png(tmp_path):
     xs = [6, 9, 12, 14]
     rtilde_full = {6: 0.82, 9: 0.79, 12: 0.74, 14: 0.71}

@@ -67,6 +67,25 @@ def test_archimedean_closed_form_matches_quadrature():
         assert abs(cf - qd) < 1e-25 * (abs(qd) + 1)
 
 
+def test_archimedean_jkm_fusion_is_bit_identical():
+    # The assembly loop uses the fused _archimedean_jkm (one hyp2f1/digamma per
+    # mode); it must return *exactly* the standalone archimedean_J/K/M values, since
+    # only the redundant special-function calls are removed, not the arithmetic.
+    mp.mp.dps = 50
+    L = 2 * mp.log(mp.sqrt(13))
+    qq = mp.exp(-2 * L)
+    exp_mhalf = mp.exp(-L / 2)
+    m_const = 2 * exp_mhalf * mp.hyp2f1(mp.mpf(1) / 4, 1, mp.mpf(5) / 4, qq)
+    dig_quarter = mp.digamma(mp.mpf(1) / 4)
+    for n in (0, 1, 3, 7, 12):
+        j, k, m = ccm._archimedean_jkm(
+            n, L, qq=qq, exp_mhalf=exp_mhalf, m_const=m_const, dig_quarter=dig_quarter
+        )
+        assert j == ccm.archimedean_J(n, L)
+        assert k == ccm.archimedean_K(n, L)
+        assert m == ccm.archimedean_M(n, L)
+
+
 def test_point_mass_symmetric_and_closed_form():
     mp.mp.dps = 30
     L = 2 * mp.log(mp.sqrt(13))

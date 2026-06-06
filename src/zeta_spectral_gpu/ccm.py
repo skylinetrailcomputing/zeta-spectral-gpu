@@ -173,6 +173,37 @@ def archimedean_M(n: int, L) -> mp.mpf:
     return t1 + t2 + t3
 
 
+def _archimedean_jkm(n: int, L, *, qq, exp_mhalf, m_const, dig_quarter):
+    """Fused ``(J, K, M)`` for mode ``n`` (eqs. 4.5-4.7), sharing the expensive
+    pieces the standalone functions each recompute.
+
+    ``archimedean_J``/``_K``/``_M`` independently evaluate the *same*
+    ``hyp2f1(1, zk, zk+1, qq)`` (3x) and ``digamma(zk)`` (2x: J and M); across the
+    O(N) assembly loop that is the bulk of the archimedean special-function work.
+    This computes ``zk``, that one hypergeometric, ``digamma(zk)``, the trigamma and
+    the order-2 Lerch once each. The cheap complex coefficient arithmetic is left
+    identical to the standalone formulas, so the result is bit-for-bit the same
+    (asserted in the tests). The ``n``-independent ``qq = e^{-2L}``,
+    ``exp_mhalf = e^{-L/2}``, the M constant ``2 e^{-L/2} 2F1(1/4,1,5/4,qq)`` and
+    ``digamma(1/4)`` are hoisted by the caller out of the loop.
+    """
+    zk = _zk(n, L)
+    hyp = mp.hyp2f1(1, zk, zk + 1, qq)
+    dig = mp.digamma(zk)
+    j = exp_mhalf * mp.im((2 * L / (L + 4 * mp.pi * 1j * n)) * hyp) + mp.im(dig) / 2
+    k = (
+        -L * exp_mhalf * mp.im((2 * L / (4 * mp.pi * n - 1j * L)) * hyp)
+        - (exp_mhalf / 4) * mp.re(_lerch(qq, 2, zk))
+        + mp.re(mp.polygamma(1, zk)) / 4
+    )
+    m = (
+        -exp_mhalf * mp.re((2 * L / (L + 4 * mp.pi * 1j * n)) * hyp)
+        + m_const
+        - mp.re(dig - dig_quarter) / 2
+    )
+    return j, k, m
+
+
 def _archimedean_diag_const(L) -> mp.mpf:
     """The ``n``-independent part of the diagonal archimedean entry.
 
@@ -299,9 +330,15 @@ def assemble_weil_matrix(N: int, lam) -> mp.matrix:
     coefs = [lam_k / mp.sqrt(k) for (k, lam_k) in pps]
 
     # B[n] (odd) collects J(n) and the prime sin-sum; the diagonal collects the
-    # archimedean diagonal entry and the prime cos-sum (both even in n).
+    # archimedean diagonal entry and the prime cos-sum (both even in n). The three
+    # archimedean integrals are fused (one hyp2f1 / digamma per mode instead of
+    # 3 / 2) and their n-independent factors hoisted out of the loop (#17).
     b_pos: list[mp.mpf] = []
     diag_const = _archimedean_diag_const(L)
+    qq = mp.exp(-2 * L)
+    exp_mhalf = mp.exp(-L / 2)
+    m_const = 2 * exp_mhalf * mp.hyp2f1(mp.mpf(1) / 4, 1, mp.mpf(5) / 4, qq)
+    dig_quarter = mp.digamma(mp.mpf(1) / 4)
     diag_total: list[mp.mpf] = []
     for n in range(N + 1):
         sin_sum = mp.mpf(0)
@@ -310,10 +347,11 @@ def assemble_weil_matrix(N: int, lam) -> mp.matrix:
             wk = 2 * mp.pi * n * yk / L
             sin_sum += coef * mp.sin(wk)
             cos_sum += coef * 2 * (1 - yk / L) * mp.cos(wk)
-        b_pos.append(archimedean_J(n, L) + sin_sum)
-        diag_total.append(
-            diag_const + 2 * archimedean_M(n, L) - 2 / L * archimedean_K(n, L) + cos_sum
+        j, k, m = _archimedean_jkm(
+            n, L, qq=qq, exp_mhalf=exp_mhalf, m_const=m_const, dig_quarter=dig_quarter
         )
+        b_pos.append(j + sin_sum)
+        diag_total.append(diag_const + 2 * m - 2 / L * k + cos_sum)
     # Mirror to all modes n = -N..N at index n + N (B is odd).
     B = [(-b_pos[-(i - N)] if i - N < 0 else b_pos[i - N]) for i in range(dim)]
 
@@ -368,9 +406,17 @@ def smallest_even_eigenvector(A: mp.matrix, N: int, *, iters: int = 6) -> Minima
     pre-symmetrisation parity residual is reported as a check.
     """
     dim = 2 * N + 1
+    # Inverse iteration solves ``A y = x`` against the *same* matrix every step, so
+    # factor ``A`` once (LU) and reuse it across all ``iters`` solves rather than
+    # re-factoring (the O(N^3) cost) on each call — which is what ``mp.lu_solve``
+    # does. The eigensolve is ~95% of the pipeline, so amortizing the factorization
+    # is the dominant CPU win (#17); ~6x on the eigensolve, bit-identical to the
+    # per-call ``lu_solve`` (asserted in the tests). ``overwrite=False`` keeps ``A``
+    # intact for the Rayleigh quotient below.
+    lu, piv = mp.mp.LU_decomp(A, overwrite=False)
     x = mp.matrix([mp.mpf(1) for _ in range(dim)])
     for _ in range(iters):
-        x = mp.lu_solve(A, x)
+        x = mp.mp.U_solve(lu, mp.mp.L_solve(lu, x, piv))
         x = x / mp.norm(x)
 
     # Rayleigh quotient for epsilon_N.

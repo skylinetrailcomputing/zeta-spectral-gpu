@@ -30,6 +30,14 @@ gpu = ["cupy-cuda12x[ctk]"]
 # ~11x); λ_min is bit-identical with or without it, so [fast] is pure speed.
 oracle = ["connes-cvs[fast]>=0.2.2"]
 
+# CPU acceleration for the flagship multiprecision path (#17). gmpy2 swaps
+# mpmath's pure-Python integer core for GMP: ~2x on every mpf op at dps~210, so
+# ~2x on the eigensolve-dominated CCM run (and it stacks with the factor-once
+# inverse iteration). Pure speed — mpmath auto-detects gmpy2 on import and the
+# values are bit-identical with or without it. Optional like `gpu`/`oracle` so a
+# plain `uv sync` and CI stay lean; enable with `uv sync --extra accel`.
+accel = ["gmpy2>=2.1"]
+
 [dependency-groups]
 dev = ["pytest>=8.0", "ruff>=0.6"]
 

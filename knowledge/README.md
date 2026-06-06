@@ -39,6 +39,13 @@ top-level `CLAUDE.md`; per-session narrative lives in git history.
   arXiv:2605.20224 and Śliwiński's inverse-log convergence law arXiv:2601.12133),
   verdicts on the four self-identified gaps (Katz–Sarnak #51, Li #52, BBM,
   Keating–Snaith), and a ranked list of forward experiment candidates.
+- [`katz-sarnak-families.md`](katz-sarnak-families.md) — Katz–Sarnak family
+  statistics (#51): the quadratic Dirichlet family `L(s, χ_d)` (Kronecker
+  characters over fundamental discriminants) is **symplectic** — its conductor-
+  rescaled low-lying zeros are suppressed at the central point, tracking
+  `1 − sin(2πx)/(2πx)` and away from unitary/orthogonal. The forward family
+  companion to the single-sequence GUE warm-up; mpmath ground truth + the GPU
+  locator as the embarrassingly-parallel-over-the-family producer.
 - [`predecessor/`](predecessor/) — distilled, public-safe archive of the CPU
   predecessor `wedgetrigfunctions202601` (private): the harmonic-functions →
   conical → hyperbolic/Selberg → GUE arc, and the arithmetic-chaos headline

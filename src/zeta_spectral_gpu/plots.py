@@ -12,7 +12,7 @@ from pathlib import Path
 import matplotlib
 import numpy as np
 
-from . import spacing, zeros
+from . import katz_sarnak, spacing, zeros
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402  (must follow matplotlib.use)
@@ -996,6 +996,88 @@ def pair_correlation_figure(
     ax.set_ylim(0.0, 1.35)
     ax.set_title(title or "Zero pair correlation vs the GUE sine kernel")
     ax.legend(loc="lower right")
+    fig.tight_layout()
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out
+
+
+def katz_sarnak_density_figure(
+    centres: np.ndarray,
+    density: np.ndarray,
+    *,
+    out_path: Path | str,
+    n_members: int | None = None,
+    x_disc: float = 1.0,
+    title: str | None = None,
+) -> Path:
+    """Save the family 1-level density vs the symmetry-type kernels (issue #51).
+
+    The teaching figure for Katz-Sarnak universality. Bars are the empirical
+    1-level density ``W(x)`` of the quadratic Dirichlet family (pooled low-lying
+    zeros rescaled by conductor, :func:`katz_sarnak.family_one_level_density`); the
+    three curves are the parameter-free random-matrix kernels — **symplectic**
+    ``1 - sin(2 pi x)/(2 pi x)`` (the prediction, suppressed at the centre), unitary
+    ``1`` (flat), and even-orthogonal ``1 + sin(2 pi x)/(2 pi x)`` (enhanced). The
+    discrimination window ``x <= x_disc`` (where the kernels split) is shaded, and
+    the closest kernel — the forward verdict — is annotated. Forward: the zeros are
+    produced per member and only compared; nothing is fit. Returns the path written.
+    """
+    centres = np.asarray(centres, dtype=np.float64)
+    density = np.asarray(density, dtype=np.float64)
+    width = float(centres[1] - centres[0]) if centres.size > 1 else 0.25
+    grid = np.linspace(1e-3, float(centres[-1] + 0.5 * width), 400)
+    verdict = katz_sarnak.classify_symmetry(centres, density, x_disc=x_disc)
+
+    fig, ax = plt.subplots(figsize=(8.0, 5.0))
+    members = "" if n_members is None else f" ({n_members} L-functions)"
+    ax.bar(
+        centres,
+        density,
+        width=width,
+        align="center",
+        color="#cfe3f7",
+        edgecolor="#5b9bd5",
+        label="quadratic family $W(x)$" + members,
+    )
+    ax.axvspan(
+        0.0, x_disc, color="#f6d6d0", alpha=0.35, label=rf"$x\leq{x_disc:g}$ window"
+    )
+    ax.plot(
+        grid,
+        katz_sarnak.symplectic_density(grid),
+        color="#c0392b",
+        lw=2,
+        label=r"symplectic $1-\frac{\sin 2\pi x}{2\pi x}$",
+    )
+    ax.plot(
+        grid,
+        katz_sarnak.unitary_density(grid),
+        color="#27ae60",
+        lw=2,
+        ls="--",
+        label="unitary $1$",
+    )
+    ax.plot(
+        grid,
+        katz_sarnak.orthogonal_even_density(grid),
+        color="#8e44ad",
+        lw=2,
+        ls="-.",
+        label=r"orthogonal $1+\frac{\sin 2\pi x}{2\pi x}$",
+    )
+    ax.set_xlabel(r"rescaled height $x = \gamma\,\log q / 2\pi$")
+    ax.set_ylabel("1-level density $W(x)$")
+    ax.set_xlim(0.0, float(grid[-1]))
+    ax.set_ylim(bottom=0.0)
+    ax.set_title(
+        title
+        or f"Katz--Sarnak: quadratic Dirichlet family is {verdict} (suppressed at $x=0$)"
+    )
+    ax.legend(loc="lower right", fontsize=8)
     fig.tight_layout()
 
     out = Path(out_path)

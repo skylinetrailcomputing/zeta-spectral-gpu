@@ -124,3 +124,16 @@ def test_ccm_rtilde_vs_cutoff_figure_writes_png(tmp_path):
     )
     assert out2.exists()
     assert out2.read_bytes()[:8] == _PNG_MAGIC
+
+
+def test_katz_sarnak_density_figure_writes_png(tmp_path):
+    from zeta_spectral_gpu import katz_sarnak
+
+    centres = np.linspace(0.125, 2.875, 12)
+    density = katz_sarnak.symplectic_density(centres)  # a clean symplectic curve
+    out = plots.katz_sarnak_density_figure(
+        centres, density, out_path=tmp_path / "ks.png", n_members=30
+    )
+    assert out.exists()
+    assert out.read_bytes()[:8] == _PNG_MAGIC
+    assert len(out.read_bytes()) > 1000

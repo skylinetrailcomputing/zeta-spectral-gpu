@@ -488,6 +488,27 @@ def reference_ordinates(count: int) -> list[mp.mpf]:
     return [mp.im(mp.zetazero(k)) for k in range(1, count + 1)]
 
 
+def operator_spectrum(
+    N: int, lam, *, count: int | None = None, dps: int = 210
+) -> list[mp.mpf]:
+    """The operator's positive spectrum (the zeta-zero approximations), no zeros.
+
+    Like :func:`converge` but returns only the computed eigenvalues — the forward
+    output — without comparing to the true ordinates. ``count`` defaults to ``N``
+    (about as many low levels as the dimension ``2N+1`` supports), which is what
+    the universality diagnostics (#5/#6/#15) want: a whole spectrum to unfold by
+    its own count and feed to the spacing statistics, not just the first few.
+    """
+    if count is None:
+        count = N
+    with mp.workdps(dps):
+        lam = mp.mpf(lam)
+        L = 2 * mp.log(lam)
+        A = assemble_weil_matrix(N, lam)
+        mode = smallest_even_eigenvector(A, N)
+        return operator_eigenvalues(mode.eigenvector, N, L, count)
+
+
 def converge(N: int, lam, count: int, *, dps: int = 210) -> CCMResult:
     """Run the full forward experiment for one ``(N, lambda)`` at ``dps`` digits.
 

@@ -38,13 +38,15 @@ forward side of that line.
 
 | Phase | What | Status |
 |---|---|---|
-| **Warm-up** | Spacing / pair-correlation / universality statistics on large zero sets and candidate spectra, on the GPU. Extends `wedgetrigfunctions`' `gue_spacing.py` and scales it. Well-posed, falsifiable, embarrassingly parallel. | 🟡 scaffolding |
-| **Flagship** | Reimplement the **Connes–Consani–Moscovici finite-cutoff spectral-triple operators** (rank-one perturbation of a scaling operator; the matrix is the Weil explicit-formula quadratic form, whose prime content is the Euler/von-Mangoldt sum over primes `p ≤ x = λ²`) and study spectral convergence to the low zeros as the cutoff grows. Forward, prime-driven, on the live research edge. | ⚪ paper-read first |
+| **Warm-up** | Spacing / pair-correlation / universality statistics on large zero sets and candidate spectra, on the GPU. Extends `wedgetrigfunctions`' `gue_spacing.py` and scales it. Well-posed, falsifiable, embarrassingly parallel. | 🟢 core statistics landed (spacing, pair-correlation, rigidity); stretch experiments in progress |
+| **Flagship** | Reimplement the **Connes–Consani–Moscovici finite-cutoff spectral-triple operators** (rank-one perturbation of a scaling operator; the matrix is the Weil explicit-formula quadratic form, whose prime content is the Euler/von-Mangoldt sum over primes `p ≤ x = λ²`) and study spectral convergence to the low zeros as the cutoff grows. Forward, prime-driven, on the live research edge. | 🟡 operator pinned (`knowledge/ccm-operator.md`); multiprecision reference next |
 
 The flagship operator definition must come from the **primary source**
 (Connes, Consani & Moscovici, *Zeta Spectral Triples*, arXiv:2511.22755, Nov
-2025), not from any secondary note. Pinning it precisely is the first task of
-that phase. Context for scale: that paper runs at **~200-digit precision**
+2025), not from any secondary note. Pinning it precisely was the first task of
+that phase — now done; the verified, equation-by-equation spec lives in
+`knowledge/ccm-operator.md`. Context for scale: that paper runs at
+**~200-digit precision**
 (matrix dimension 241, N=120) with per-zero errors down to ~1e-55 — which is
 exactly why the GPU here is for assembly and sweeps, not the eigensolve.
 
@@ -71,18 +73,34 @@ CUDA eigensolve"; it is a sweep harness plus assembly kernels.
 
 ## Running
 
-> **Environment is not yet stood up on the dev machine.** Build it first:
->
-> ```powershell
-> # install a real Python 3.11+ and uv, then:
-> uv sync                  # core (CPU) deps
-> uv sync --extra gpu      # add the CuPy wheel matching the installed CUDA
-> uv run python -c "import cupy; print(cupy.cuda.runtime.getDeviceProperties(0)['name'])"
-> ```
->
-> The exact CuPy wheel (`cupy-cuda12x` vs `cupy-cuda13x`) must match the
-> installed CUDA runtime — **verify it imports and sees the GPU** rather than
-> trusting the pin. See `CLAUDE.md`.
+Managed with [`uv`](https://docs.astral.sh/uv/). On a fresh machine install uv
+(`winget install astral-sh.uv` on Windows; see the uv docs for macOS / Linux),
+then from the repo root:
+
+```powershell
+uv sync                  # core (CPU) deps
+uv sync --extra gpu      # add CuPy for the GPU paths
+uv run pytest            # CPU tests pass without a GPU; GPU tests self-skip
+```
+
+uv reads `.python-version` (3.12) and provisions the interpreter itself — no
+python.org / Microsoft Store Python needed. Run everything through `uv run`
+(e.g. `uv run python scripts/run_spacing.py`).
+
+The `gpu` extra pins `cupy-cuda12x[ctk]`; the **`[ctk]` is required**, not
+optional — CuPy 14 JIT-compiles the CUDA kernels via NVRTC at runtime and needs
+the CUDA toolkit headers, which `[ctk]` supplies as pip wheels (no system CUDA
+Toolkit install). Verify it imports and sees the GPU rather than trusting the
+pin:
+
+```powershell
+uv run python -c "import cupy; print(cupy.cuda.runtime.getDeviceProperties(0)['name'])"
+```
+
+Developed and verified on an RTX 3090 (CUDA runtime 12.9 under a 13.2 driver). A
+harmless `UserWarning: CUDA path could not be detected` appears on import because
+the libraries come from pip wheels rather than a system toolkit — it does not
+affect operation. See `CLAUDE.md` for more.
 
 ## Layout
 

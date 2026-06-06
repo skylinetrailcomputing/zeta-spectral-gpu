@@ -27,3 +27,16 @@ def test_spacing_histogram_figure_creates_parent_dirs(tmp_path):
         spacings, out_path=tmp_path / "sub" / "deep" / "f.png"
     )
     assert out.exists()
+
+
+def test_pair_correlation_figure_writes_png(tmp_path):
+    bin_width, n_levels, n_bins = 0.05, 100_000, 60
+    centres = (np.arange(n_bins) + 0.5) * bin_width
+    from zeta_spectral_gpu import spacing
+
+    hist = n_levels * bin_width * spacing.montgomery_pair_correlation(centres)
+    out = plots.pair_correlation_figure(
+        hist, bin_width, n_levels=n_levels, out_path=tmp_path / "pc.png"
+    )
+    assert out.exists()
+    assert out.read_bytes()[:8] == _PNG_MAGIC

@@ -36,6 +36,16 @@ def poisson_surmise(s: np.ndarray | float) -> np.ndarray:
     return np.exp(-s)
 
 
+def montgomery_pair_correlation(r: np.ndarray | float) -> np.ndarray:
+    """Montgomery's pair-correlation form R2(r) = 1 - (sin(pi r) / (pi r))^2.
+
+    The GUE sine-kernel two-point function: 0 at r=0 (level repulsion), → 1 as
+    r → ∞ (decorrelation). ``np.sinc(r)`` is exactly ``sin(pi r)/(pi r)``.
+    """
+    r = np.asarray(r, dtype=np.float64)
+    return 1.0 - np.sinc(r) ** 2
+
+
 def spacing_density(
     spacings: np.ndarray, n_bins: int = 50, s_max: float = 4.0
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -67,3 +77,20 @@ def pair_correlation_histogram(
             bins = bins[bins < n_bins]
             np.add.at(hist, bins, 1)
     return hist
+
+
+def pair_correlation_density(
+    hist: np.ndarray, bin_width: float, n_levels: int
+) -> tuple[np.ndarray, np.ndarray]:
+    """Normalise a forward pair-separation histogram to an empirical R2(r).
+
+    ``hist[b]`` counts ordered pairs (i<j) with separation in bin ``b``. For
+    unfolded levels (unit density), the expected forward count in a width-``w``
+    bin at separation ``r`` is ``n_levels * R2(r) * w`` (edge effects O(max_sep/N),
+    negligible at scale), so ``R2(r) = hist / (n_levels * w)``. Returns
+    ``(r_centres, R2)`` to compare against ``montgomery_pair_correlation``.
+    """
+    hist = np.asarray(hist, dtype=np.float64)
+    centres = (np.arange(hist.size) + 0.5) * bin_width
+    r2 = hist / (n_levels * bin_width)
+    return centres, r2

@@ -2,6 +2,9 @@
 CLAUDE.local.md
 _private/
 
+# Claude Code local session state / worktrees
+.claude/
+
 # Python / uv
 .venv/
 __pycache__/

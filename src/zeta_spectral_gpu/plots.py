@@ -149,6 +149,67 @@ def rigidity_figure(
     return out
 
 
+def dbn_rigidity_figure(
+    lengths: np.ndarray,
+    sigma2_by_t: dict[float, np.ndarray],
+    delta3_by_t: dict[float, np.ndarray],
+    *,
+    out_path: Path | str,
+    title: str | None = None,
+) -> Path:
+    """Save rigidity vs window length for a family of De Bruijn–Newman times ``t``.
+
+    One curve per ``t`` in each panel (number variance ``Sigma^2(L)`` left,
+    Dyson-Mehta ``Delta_3(L)`` right), shaded light (small ``t``) to dark (large
+    ``t``), against the exact GUE references. The signature of the spike: as ``t``
+    grows the curves fall *below* GUE toward the picket-fence floor — the zeros
+    get more rigid under the heat flow. Returns the path written.
+    """
+    L = np.asarray(lengths, dtype=np.float64)
+    grid = np.geomspace(L.min(), L.max(), 400)
+    t_values = sorted(sigma2_by_t)
+    cmap = plt.get_cmap("viridis")
+    # Map t -> colour; guard against a single-t call (denominator 0).
+    t_span = (t_values[-1] - t_values[0]) or 1.0
+
+    fig, (ax_v, ax_d) = plt.subplots(1, 2, figsize=(11.0, 4.5))
+    for ax, by_t, gue_curve, sym in (
+        (ax_v, sigma2_by_t, spacing.gue_number_variance(grid), r"\Sigma^2(L)"),
+        (ax_d, delta3_by_t, spacing.gue_delta3(grid), r"\Delta_3(L)"),
+    ):
+        for t in t_values:
+            ax.plot(
+                L,
+                np.asarray(by_t[t], dtype=np.float64),
+                color=cmap(0.12 + 0.78 * (t - t_values[0]) / t_span),
+                lw=1.4,
+                marker="o",
+                ms=3,
+                label=f"$t={t:g}$",
+            )
+        ax.plot(grid, gue_curve, color="#c0392b", lw=2, ls="--", label="GUE")
+        ax.set_xscale("log")
+        ax.set_xlabel("window length $L$ (mean spacings)")
+        ax.set_ylim(bottom=0.0)
+        ax.legend(loc="upper left", fontsize=8, ncol=2)
+
+    ax_v.set_ylabel(r"number variance $\Sigma^2(L)$")
+    ax_v.set_title(r"Number variance $\Sigma^2(L)$")
+    ax_d.set_ylabel(r"spectral rigidity $\Delta_3(L)$")
+    ax_d.set_title(r"Dyson--Mehta $\Delta_3(L)$")
+
+    fig.suptitle(
+        title or r"De Bruijn–Newman flow: rigidity increases with $t$ (more rigid)"
+    )
+    fig.tight_layout()
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out
+
+
 def pair_correlation_figure(
     hist: np.ndarray,
     bin_width: float,

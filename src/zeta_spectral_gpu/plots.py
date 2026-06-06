@@ -210,6 +210,52 @@ def dbn_rigidity_figure(
     return out
 
 
+def ccm_convergence_figure(
+    errors_by_lambda: dict[str, np.ndarray],
+    *,
+    N: int,
+    out_path: Path | str,
+    title: str | None = None,
+) -> Path:
+    """Save the flagship convergence figure: ``|eig_k - t_k|`` vs zero index ``k``.
+
+    One curve per cutoff ``lambda`` (labelled by ``x = lambda^2``), ``y`` on a log
+    scale because the errors span tens of orders of magnitude (``~1e-55`` at
+    ``k = 1`` up to ``~1e-3`` at ``k = 50`` for the headline case). The forward
+    content: a *structurally derived* operator's spectrum reproducing the first
+    few-dozen zeta ordinates to extreme accuracy, with the error growing with the
+    index and shrinking fast as the prime cutoff ``x`` grows. Returns the path.
+    """
+    fig, ax = plt.subplots(figsize=(7.5, 5.0))
+    cmap = plt.get_cmap("viridis")
+    labels = list(errors_by_lambda)
+    span = (len(labels) - 1) or 1
+    for i, label in enumerate(labels):
+        err = np.asarray(errors_by_lambda[label], dtype=np.float64)
+        k = np.arange(1, err.size + 1)
+        ax.semilogy(
+            k,
+            err,
+            color=cmap(0.12 + 0.78 * i / span),
+            lw=1.4,
+            marker="o",
+            ms=3,
+            label=label,
+        )
+    ax.set_xlabel("zero index $k$")
+    ax.set_ylabel(r"$|\,\mathrm{eig}_k - t_k\,|$")
+    ax.set_title(title or f"CCM finite-cutoff convergence to the zeros ($N={N}$)")
+    ax.grid(True, which="both", ls=":", alpha=0.4)
+    ax.legend(title="cutoff", loc="upper left")
+    fig.tight_layout()
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out
+
+
 def deformed_xp_staircase_figure(
     spectrum: np.ndarray,
     *,

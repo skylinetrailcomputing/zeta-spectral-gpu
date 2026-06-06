@@ -45,7 +45,9 @@ Truncate to `|n| ≤ N` ⇒ the space `E_N`, dimension `2N+1`. These are the
 The matrix that is diagonalised is the **Weil explicit-formula quadratic form**
 `QW_λ` restricted to `E_N`. In the `♯`/`F` variables (`F = Δ^{1/2}f`,
 `F(x) = x^{1/2} f(x)`) the explicit formula (3.2) splits `QW` into three
-distribution types, each contributing additively to the matrix:
+distribution types. They combine with the **signs of the explicit formula**
+(eqs. 3.10/3.13): `Ψ♯ = W_{0,2}^♯ − W_ℝ^♯ − Σ_p W_p^♯` — point-mass *minus*
+archimedean *minus* primes (see §4):
 
 - **point-mass** `W_{0,2}` — eq. (3.14),
 - **archimedean** `W_ℝ` — eq. (3.15),
@@ -70,8 +72,19 @@ Note `q(U_m,U_n)(0) = 0` for `m ≠ n` and `q(U_n,U_n)(0) = 2`.
 
 ## 4. Matrix entries
 
-The full entry is the sum of the three contributions below:
-`(QW_λ^N)_{n,m} = W_{0,2}(V_n,V_m) + W_ℝ(V_n,V_m) + Σ_p W_p(V_n,V_m)`.
+The full entry combines the three contributions below **with the explicit-formula
+signs** (eqs. 3.10, 3.13 — point-mass *minus* archimedean *minus* primes):
+`(QW_λ^N)_{n,m} = W_{0,2}(V_n,V_m) − W_ℝ(V_n,V_m) − Σ_p W_p(V_n,V_m)`.
+
+> ⚠️ **Sign correction (verified against the PDF, eqs. 3.10/3.13).** An earlier
+> revision of this note wrote this as a *sum* of all three. That is wrong: with
+> the all-`+` combination the operator is the wrong sign on `W_ℝ`/`Σ_p`, its
+> minimal eigenvalue comes out negative (`~−1e−51` instead of the Weil-positive
+> `~+1e−59`), and the spectrum converges to the zeros only to `~1e−50` before
+> plateauing — five orders short of §6. With the subtraction the minimal
+> eigenvalue is tiny-positive and the first zeros match §6 (`~1e−55`). The
+> individual closed forms in §4.1–4.3 are unchanged; only the combination sign
+> was wrong.
 
 ### 4.1 Point-mass `W_{0,2}` — Lemma 4.1 (closed form, rank-one)
 
@@ -231,9 +244,13 @@ as `N, λ → ∞`. The numerics here are forward evidence, not a proof.
 
 ## 9. Corrections to the earlier internal sketch
 
-While verifying against the PDF, three points in the pre-existing maintainer
+While verifying against the PDF, these points in the pre-existing maintainer
 notes were corrected:
 
+- **Combination sign (caught during the #8 numerics).** The three contributions
+  combine as `W_{0,2} − W_ℝ − Σ_p W_p` (eqs. 3.10/3.13), *not* as an all-`+` sum.
+  The all-`+` version plateaus five orders short of §6 and gives a negative
+  minimal eigenvalue; the subtraction reproduces §6. See the box in §4.
 - **Prime term has no `F(p^{−m})`.** The clean computational form is eq. (4.3),
   `Σ_{k≤λ²} Λ(k) k^{−1/2} q(U_n,U_m)(log k)` — one `q`-evaluation per prime
   power. The reflection is already in the even kernel `q`; there is no separate

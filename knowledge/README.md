@@ -33,9 +33,15 @@ top-level `CLAUDE.md`; per-session narrative lives in git history.
   the cutoff `x` grows the local statistics relax toward GUE and the
   zero-tracking window converges to the real zeros' `⟨r̃⟩`; why pushing `N` is the
   wrong lever (the pole-locked tail).
+- [`predecessor/`](predecessor/) — distilled, public-safe archive of the CPU
+  predecessor `wedgetrigfunctions202601` (private): the harmonic-functions →
+  conical → hyperbolic/Selberg → GUE arc, and the arithmetic-chaos headline
+  (Riemann zeros = GUE, modular Maass = Poisson, via Hecke symmetries) that
+  motivates this repo's warm-up phase and its forward-not-inverse rule. Settled
+  background — the prerequisite reading.
 
 The deeper mathematical background (harmonic functions → conical/Legendre
 functions → hyperbolic/Selberg spectrum → GUE statistics, and the full
-Hilbert–Pólya landscape) lives in the predecessor repo
-[`wedgetrigfunctions202601`](https://github.com/bradleypmartin/wedgetrigfunctions202601)
-under its own `knowledge/`. That arc is treated as settled background here.
+Hilbert–Pólya landscape) comes from that predecessor. Its repo is private, so
+the public-safe distillation in [`predecessor/`](predecessor/) is the in-repo
+stand-in; that arc is treated as settled background here.

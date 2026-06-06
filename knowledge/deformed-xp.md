@@ -81,4 +81,4 @@ test); the spectra and GPU agreement run in the default suite.
   and the Riemann zeros*, PRL **106**, 200201 (2011). The deformed operator and its
   Bessel-`K` secular equation. (Local PDF in `_private/papers/`.)
 - Background on Berry–Keating `xp` and the average-zeros question: the predecessor
-  repo `wedgetrigfunctions202601` and [`project-framing.md`](project-framing.md).
+  archive [`predecessor/`](predecessor/) and [`project-framing.md`](project-framing.md).

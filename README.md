@@ -8,11 +8,11 @@ This repo is the *numerical* arm of that question: take operators and statistics
 that are **structurally derived** and push them on a GPU to see what they do.
 
 It is the GPU successor to the pure-Python research repo
-[`wedgetrigfunctions202601`](https://github.com/bradleypmartin/wedgetrigfunctions202601),
-which traced harmonic functions → conical/Legendre functions → the hyperbolic
-(Selberg) spectrum → GUE spacing statistics on CPU. The conceptual notes there
-are the prerequisite reading; this repo reuses the conclusions and scales the
-compute.
+`wedgetrigfunctions202601` (a private repo), which traced harmonic functions →
+conical/Legendre functions → the hyperbolic (Selberg) spectrum → GUE spacing
+statistics on CPU. Its conceptual notes are the prerequisite reading, distilled
+public-safe into [`knowledge/predecessor/`](knowledge/predecessor/); this repo
+reuses the conclusions and scales the compute.
 
 ## The one rule: forward, never inverse
 

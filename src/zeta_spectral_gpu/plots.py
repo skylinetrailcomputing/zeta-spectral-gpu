@@ -72,6 +72,90 @@ def spacing_histogram_figure(
     return out
 
 
+def spacing_ratio_figure(
+    ratios: np.ndarray,
+    *,
+    out_path: Path | str,
+    n_bins: int = 50,
+    title: str | None = None,
+    label: str = "Riemann zeros",
+) -> Path:
+    """Save a folded spacing-ratio histogram ``P(r̃)`` vs the GUE/GOE/Poisson surmises.
+
+    ``ratios`` are folded consecutive ratios ``r̃ in [0, 1]`` from
+    :func:`spacing.spacing_ratios` — no unfolding. The Atas surmises (GUE ``β=2``,
+    GOE ``β=1``) and the Poisson null are overlaid, with the empirical ``⟨r̃⟩``
+    annotated against the reference means (dotted guides). Returns the path written.
+    """
+    r = np.asarray(ratios, dtype=np.float64)
+    r = r[np.isfinite(r)]
+    centres, density = spacing.ratio_density(r, n_bins=n_bins)
+    width = float(centres[1] - centres[0]) if centres.size > 1 else 1.0 / n_bins
+    grid = np.linspace(1e-3, 1.0, 400)
+    mean_emp = float(np.mean(r)) if r.size else float("nan")
+
+    fig, ax = plt.subplots(figsize=(7.0, 4.5))
+    ax.bar(
+        centres,
+        density,
+        width=width,
+        align="center",
+        color="#cfe3f7",
+        edgecolor="#5b9bd5",
+        label=rf"{label} (N={r.size:,}, $\langle\tilde r\rangle$={mean_emp:.4f})",
+    )
+    ax.plot(
+        grid,
+        spacing.folded_ratio_surmise(grid, 2),
+        color="#c0392b",
+        lw=2,
+        label=r"GUE ($\beta=2$)",
+    )
+    ax.plot(
+        grid,
+        spacing.folded_ratio_surmise(grid, 1),
+        color="#e67e22",
+        lw=2,
+        ls="-.",
+        label=r"GOE ($\beta=1$)",
+    )
+    ax.plot(
+        grid,
+        spacing.folded_poisson_ratio_surmise(grid),
+        color="#27ae60",
+        lw=2,
+        ls="--",
+        label="Poisson",
+    )
+    # Reference means (dotted) and the empirical mean for at-a-glance comparison.
+    for mval, mcol in (
+        (spacing.MEAN_RATIO_GUE, "#c0392b"),
+        (spacing.MEAN_RATIO_GOE, "#e67e22"),
+        (spacing.MEAN_RATIO_POISSON, "#27ae60"),
+    ):
+        ax.axvline(mval, color=mcol, lw=1.0, ls=":", alpha=0.6)
+    ax.axvline(
+        mean_emp,
+        color="#5b9bd5",
+        lw=1.4,
+        ls=":",
+        label=r"empirical $\langle\tilde r\rangle$",
+    )
+    ax.set_xlabel(r"folded spacing ratio $\tilde r$")
+    ax.set_ylabel(r"probability density $P(\tilde r)$")
+    ax.set_xlim(0.0, 1.0)
+    ax.set_ylim(bottom=0.0)
+    ax.set_title(title or r"Spacing ratio $\tilde r$ vs GUE (unfolding-free)")
+    ax.legend(fontsize=8)
+    fig.tight_layout()
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out
+
+
 def rigidity_figure(
     lengths: np.ndarray,
     sigma2: np.ndarray,

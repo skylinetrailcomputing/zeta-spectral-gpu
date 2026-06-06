@@ -50,4 +50,22 @@ __global__ void consecutive_diff(
     s[i] = x[i + 1] - x[i];
 }
 
+// Folded consecutive spacing ratios r[i] = min(s_i, s_{i+1}) / max(s_i, s_{i+1}),
+// with s_i = x[i+1] - x[i] (Atas 2013). Fuses the two gap differences and the
+// min/max into one pass so there is no host round-trip and the raw gaps never
+// leave the device. Input ascending; writes n-2 ratios. One thread per ratio.
+// A zero max gap yields the same inf/nan the numpy reference produces (surfaced).
+// (ASCII only: CuPy re-emits this source through the Windows cp1252 codec.)
+__global__ void spacing_ratios(
+    const double* __restrict__ x,
+    const long n,                   // length of x; writes n-2 ratios
+    double* __restrict__ r)
+{
+    const long i = blockIdx.x * (long)blockDim.x + threadIdx.x;
+    if (i >= n - 2) return;
+    const double s0 = x[i + 1] - x[i];
+    const double s1 = x[i + 2] - x[i + 1];
+    r[i] = fmin(s0, s1) / fmax(s0, s1);
+}
+
 }  // extern "C"

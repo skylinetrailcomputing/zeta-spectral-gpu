@@ -171,3 +171,88 @@ def test_gpu_delta3_matches_cpu():
     cpu = spacing.dyson_mehta_delta3(x, lengths, n_offsets=500)
     gpu = spacing_gpu.dyson_mehta_delta3_gpu(x, lengths, n_offsets=500)
     np.testing.assert_allclose(cpu, gpu, rtol=1e-6, atol=1e-6)
+
+
+# --- Spacing-ratio statistic r̃_n (Atas 2013) -------------------------------
+
+
+def test_ratio_surmises_are_normalised():
+    # Closed-form Z_β (and the Poisson form) must integrate to 1.
+    for beta in (1, 2, 4):
+        total, _ = integrate.quad(
+            lambda r, b=beta: spacing.ratio_surmise(r, b), 0, np.inf
+        )
+        assert total == pytest.approx(1.0, abs=1e-6)
+        folded, _ = integrate.quad(
+            lambda r, b=beta: spacing.folded_ratio_surmise(r, b), 0, 1
+        )
+        assert folded == pytest.approx(1.0, abs=1e-6)
+    pois, _ = integrate.quad(spacing.poisson_ratio_surmise, 0, np.inf)
+    assert pois == pytest.approx(1.0, abs=1e-6)
+    pois_folded, _ = integrate.quad(spacing.folded_poisson_ratio_surmise, 0, 1)
+    assert pois_folded == pytest.approx(1.0, abs=1e-6)
+
+
+def test_ratio_surmise_folding_identity():
+    # The surmise satisfies P(1/r)/r² = P(r); this is why folding just doubles it.
+    r = np.array([0.2, 0.5, 0.8, 1.3, 3.0])
+    for beta in (1, 2, 4):
+        np.testing.assert_allclose(
+            spacing.ratio_surmise(1.0 / r, beta) / r**2,
+            spacing.ratio_surmise(r, beta),
+            rtol=1e-12,
+        )
+
+
+def test_ratio_surmise_means_match_literature():
+    # ⟨r̃⟩ from the folded surmise vs the Atas Table I values (GUE > GOE > Poisson).
+    def mean(fn):
+        m, _ = integrate.quad(lambda r: r * fn(r), 0, 1)
+        return m
+
+    assert mean(lambda r: spacing.folded_ratio_surmise(r, 2)) == pytest.approx(
+        spacing.MEAN_RATIO_GUE, abs=2e-3
+    )
+    assert mean(lambda r: spacing.folded_ratio_surmise(r, 1)) == pytest.approx(
+        spacing.MEAN_RATIO_GOE, abs=2e-3
+    )
+    assert mean(lambda r: spacing.folded_ratio_surmise(r, 4)) == pytest.approx(
+        spacing.MEAN_RATIO_GSE, abs=2e-3
+    )
+    assert mean(spacing.folded_poisson_ratio_surmise) == pytest.approx(
+        spacing.MEAN_RATIO_POISSON, abs=1e-6
+    )
+    # The ordering is the whole point of the discriminator (more rigid -> higher).
+    assert (
+        spacing.MEAN_RATIO_GSE
+        > spacing.MEAN_RATIO_GUE
+        > spacing.MEAN_RATIO_GOE
+        > spacing.MEAN_RATIO_POISSON
+    )
+
+
+def test_spacing_ratios_basic_and_picket_fence():
+    # Hand-checked: gaps [2,1,1,3] -> ratios [1/2, 1, 1/3].
+    x = np.array([0.0, 2.0, 3.0, 4.0, 7.0])
+    np.testing.assert_allclose(spacing.spacing_ratios(x), [0.5, 1.0, 1.0 / 3.0])
+    # A unit picket fence is maximally rigid: every r̃ = 1, so ⟨r̃⟩ = 1.
+    picket = spacing.spacing_ratios(np.arange(1000, dtype=np.float64))
+    np.testing.assert_allclose(picket, 1.0)
+
+
+def test_spacing_ratios_poisson_mean():
+    # Uncorrelated (Poisson) levels: ⟨r̃⟩ -> 2 ln 2 − 1.
+    rng = np.random.default_rng(0)
+    x = np.sort(rng.uniform(0.0, 1.0, size=200_000))
+    rt = spacing.spacing_ratios(x)
+    assert float(np.mean(rt)) == pytest.approx(spacing.MEAN_RATIO_POISSON, abs=5e-3)
+
+
+def test_gpu_spacing_ratios_match_cpu():
+    cp = pytest.importorskip("cupy")  # noqa: F841
+    from zeta_spectral_gpu import spacing_gpu
+
+    x = _sorted_levels()
+    cpu = spacing.spacing_ratios(x)
+    gpu = spacing_gpu.spacing_ratios_gpu(x)
+    np.testing.assert_allclose(cpu, gpu, rtol=0, atol=1e-12)

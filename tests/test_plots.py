@@ -29,6 +29,17 @@ def test_spacing_histogram_figure_creates_parent_dirs(tmp_path):
     assert out.exists()
 
 
+def test_spacing_ratio_figure_writes_png(tmp_path):
+    from zeta_spectral_gpu import spacing
+
+    rng = np.random.default_rng(0)
+    levels = np.sort(rng.uniform(0.0, 5000.0, size=5000))
+    ratios = spacing.spacing_ratios(levels)
+    out = plots.spacing_ratio_figure(ratios, out_path=tmp_path / "ratio.png", n_bins=40)
+    assert out.exists()
+    assert out.read_bytes()[:8] == _PNG_MAGIC
+
+
 def test_pair_correlation_figure_writes_png(tmp_path):
     bin_width, n_levels, n_bins = 0.05, 100_000, 60
     centres = (np.arange(n_bins) + 0.5) * bin_width

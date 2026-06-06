@@ -1085,3 +1085,104 @@ def katz_sarnak_density_figure(
     fig.savefig(out, dpi=150)
     plt.close(fig)
     return out
+
+
+# ----------------------------------------------------------------------------
+# CCM convergence-law figures (issue #65)
+# ----------------------------------------------------------------------------
+
+
+def ccm_convergence_artifact_figure(study: dict, *, out_path: Path | str) -> Path:
+    """Genuine (mpmath) vs fp64 low-zero error across the cutoff (the #65 headline).
+
+    ``study`` is the dict from ``run_ccm_convergence.study_artifact``. The genuine
+    error collapses **super-exponentially** in the cutoff ``x`` (Groskin), while the
+    fp64 error stays ``O(1..10)`` — it is ``xi``-corruption from the precision wall,
+    not finite-cutoff error. So a fp64 ("~7-digit") inverse-log "measurement" is
+    largely measuring the wall.
+    """
+    rows = study["rows"]
+    xs = [r["x"] for r in rows]
+    genuine = [max(r["genuine"], 1e-300) for r in rows]
+    fp64 = [max(r["fp64"], 1e-300) for r in rows]
+    corruption = [max(r["corruption"], 1e-300) for r in rows]
+
+    fig, ax = plt.subplots(figsize=(7.0, 4.5))
+    ax.semilogy(
+        xs,
+        genuine,
+        color="#c0392b",
+        lw=2,
+        marker="o",
+        label="genuine error (mpmath): super-exponential",
+    )
+    ax.semilogy(
+        xs, fp64, color="#5b9bd5", lw=2, marker="s", label="fp64 error: wall-limited"
+    )
+    ax.semilogy(
+        xs,
+        corruption,
+        color="#7f8c8d",
+        lw=1.4,
+        ls="--",
+        marker="^",
+        label=r"$|\nu^{\mathrm{fp64}}-\nu^{\mathrm{mpmath}}|$ (corruption)",
+    )
+    ax.set_xlabel(r"prime cutoff $x=\lambda^2$")
+    ax.set_ylabel(f"max error over first {study['low']} zeros")
+    ax.set_title(f"CCM low-zero convergence: genuine vs fp64 ($N={study['N']}$)")
+    ax.legend(loc="center left", fontsize=9)
+    fig.tight_layout()
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out
+
+
+def ccm_convergence_edge_figure(study: dict, *, out_path: Path | str) -> Path:
+    """Per-index error profile vs the Heisenberg floor ``1/(4 ln lambda)`` (Thm 3.1).
+
+    ``study`` is the dict from ``run_ccm_convergence.study_edge``. The low zeros sit
+    far below the floor (super-exponentially small); the per-index error climbs
+    toward the floor only at the resolution edge ``k -> N`` — so the inverse-log
+    floor is an edge phenomenon, not a property of the tracked spectrum.
+    """
+    errs = np.asarray(study["errors"], dtype=np.float64)
+    errs = np.clip(errs, 1e-300, None)
+    k = np.arange(1, errs.size + 1)
+    bound = study["bound"]
+
+    fig, ax = plt.subplots(figsize=(7.0, 4.5))
+    ax.semilogy(
+        k, errs, color="#5b9bd5", lw=1.4, marker="o", ms=3, label=r"$|\nu_k-\zeta_k|$"
+    )
+    ax.axhline(
+        bound,
+        color="#c0392b",
+        lw=2,
+        ls="--",
+        label=r"Heisenberg floor $1/(4\ln\lambda)$",
+    )
+    if study.get("k_cross"):
+        ax.axvline(
+            study["k_cross"],
+            color="#7f8c8d",
+            lw=1.2,
+            ls=":",
+            label=f"reaches floor (edge) at $k={study['k_cross']}$",
+        )
+    ax.set_xlabel("zero index $k$")
+    ax.set_ylabel(r"per-index error $|\nu_k-\zeta_k|$")
+    ax.set_title(
+        f"CCM error profile vs Heisenberg floor ($N={study['N']}$, $x={study['x']}$)"
+    )
+    ax.legend(loc="lower right", fontsize=9)
+    fig.tight_layout()
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out

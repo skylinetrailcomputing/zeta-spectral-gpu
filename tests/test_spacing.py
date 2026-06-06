@@ -90,3 +90,84 @@ def test_gpu_spacings_match_cpu():
     cpu = spacing.nearest_neighbour_spacings(x)
     gpu = spacing_gpu.nearest_neighbour_spacings_gpu(x)
     np.testing.assert_allclose(cpu, gpu, rtol=0, atol=1e-12)
+
+
+# --- Rigidity: number variance and Dyson-Mehta Delta_3 ----------------------
+
+
+def test_delta3_transform_poisson_is_L_over_15():
+    # Verifies the Mehta kernel (L^3 - 2L^2 r + r^3): Sigma^2(r)=r => Delta_3=L/15.
+    lengths = np.array([2.0, 5.0, 13.0, 30.0])
+    d3 = spacing.delta3_from_sigma2(lambda r: r, lengths)
+    np.testing.assert_allclose(d3, lengths / 15.0, rtol=1e-6)
+
+
+def test_gue_number_variance_limits():
+    # Sigma^2 -> L as L -> 0 (small windows hold at most one level).
+    small = np.array([1e-4, 1e-3])
+    np.testing.assert_allclose(spacing.gue_number_variance(small), small, rtol=3e-3)
+    assert float(spacing.gue_number_variance(0.0)) == 0.0
+    # Sigma^2 -> (1/pi^2)(ln 2pi L + gamma + 1) as L -> infinity.
+    large = np.array([100.0, 1000.0])
+    asymptote = (np.log(2 * np.pi * large) + np.euler_gamma + 1.0) / np.pi**2
+    np.testing.assert_allclose(spacing.gue_number_variance(large), asymptote, atol=1e-3)
+
+
+def test_gue_delta3_asymptote():
+    # Delta_3 -> (1/2pi^2)(ln 2pi L + gamma - 5/4): half the slope of Sigma^2.
+    large = np.array([100.0, 1000.0])
+    asymptote = (np.log(2 * np.pi * large) + np.euler_gamma - 1.25) / (2 * np.pi**2)
+    np.testing.assert_allclose(spacing.gue_delta3(large), asymptote, atol=1e-3)
+
+
+def test_number_variance_picket_fence():
+    # A unit-spaced "picket fence" is maximally rigid: any integer-length window
+    # holds exactly L levels (variance 0); a half-integer window holds L or L+1
+    # with equal probability over the offset (variance 1/4).
+    x = np.arange(20_000, dtype=np.float64)
+    np.testing.assert_allclose(
+        spacing.number_variance(x, [10.0, 25.0], n_offsets=3000), 0.0, atol=1e-9
+    )
+    np.testing.assert_allclose(
+        spacing.number_variance(x, [10.5, 25.5], n_offsets=3000), 0.25, atol=1e-2
+    )
+
+
+def test_rigidity_poisson_statistics():
+    # Uncorrelated (Poisson) levels: Sigma^2(L) ~ L and Delta_3(L) ~ L/15.
+    rng = np.random.default_rng(0)
+    n = 200_000
+    x = np.sort(rng.uniform(0.0, n, size=n))
+    lengths = np.array([5.0, 10.0, 20.0])
+    sigma2 = spacing.number_variance(x, lengths, n_offsets=8000)
+    delta3 = spacing.dyson_mehta_delta3(x, lengths, n_offsets=8000)
+    np.testing.assert_allclose(sigma2, lengths, rtol=0.08)
+    np.testing.assert_allclose(delta3, lengths / 15.0, rtol=0.08)
+
+
+def test_number_variance_length_exceeding_span_is_nan():
+    x = np.sort(np.random.default_rng(1).uniform(0.0, 50.0, size=200))
+    out = spacing.number_variance(x, [10.0, 1000.0])
+    assert np.isfinite(out[0]) and np.isnan(out[1])
+
+
+def test_gpu_number_variance_matches_cpu():
+    cp = pytest.importorskip("cupy")  # noqa: F841
+    from zeta_spectral_gpu import spacing_gpu
+
+    x = _sorted_levels(800)
+    lengths = np.array([2.0, 5.0, 10.0])
+    cpu = spacing.number_variance(x, lengths, n_offsets=500)
+    gpu = spacing_gpu.number_variance_gpu(x, lengths, n_offsets=500)
+    np.testing.assert_allclose(cpu, gpu, rtol=0, atol=1e-9)
+
+
+def test_gpu_delta3_matches_cpu():
+    cp = pytest.importorskip("cupy")  # noqa: F841
+    from zeta_spectral_gpu import spacing_gpu
+
+    x = _sorted_levels(800)
+    lengths = np.array([2.0, 5.0, 10.0])
+    cpu = spacing.dyson_mehta_delta3(x, lengths, n_offsets=500)
+    gpu = spacing_gpu.dyson_mehta_delta3_gpu(x, lengths, n_offsets=500)
+    np.testing.assert_allclose(cpu, gpu, rtol=1e-6, atol=1e-6)

@@ -37,11 +37,12 @@ dev = ["pytest>=8.0", "ruff>=0.6"]
 line-length = 88
 
 [tool.pytest.ini_options]
-# `slow` guards tests that drive connes-cvs (~minutes, needs the `oracle`
-# extra). Deselected by default so `uv run pytest` and CI stay fast; run them
-# with `uv run pytest -m slow` after `uv sync --extra oracle`.
+# `slow` guards long-running, opt-in tests: the connes-cvs oracle cross-checks
+# (~minutes, need the `oracle` extra) and the heavier end-to-end statistics
+# sweeps (e.g. deformed-xp vs the real zeros, #24). Deselected by default so
+# `uv run pytest` and CI stay fast; run them with `uv run pytest -m slow`.
 addopts = "-m 'not slow'"
-markers = ["slow: long-running cross-checks (opt-in; need the oracle extra)"]
+markers = ["slow: long-running, opt-in tests (oracle cross-checks or stats sweeps)"]
 
 [build-system]
 requires = ["hatchling"]

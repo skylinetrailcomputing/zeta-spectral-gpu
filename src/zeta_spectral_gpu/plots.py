@@ -340,6 +340,148 @@ def deformed_xp_staircase_figure(
     return out
 
 
+def deformed_xp_stats_figure(
+    *,
+    spacings_xp: np.ndarray,
+    spacings_zeros: np.ndarray,
+    lengths: np.ndarray,
+    sigma2_xp: np.ndarray,
+    sigma2_zeros: np.ndarray,
+    delta3_xp: np.ndarray,
+    delta3_zeros: np.ndarray,
+    n_xp: int,
+    n_zeros: int,
+    out_path: Path | str,
+    n_bins: int = 40,
+    s_max: float = 4.0,
+    title: str | None = None,
+) -> Path:
+    """Overlay the deformed-``xp`` spectrum and the real zeros across all three
+    warm-up statistics — the #24 payoff figure.
+
+    Three panels share the layout "two empirical series vs the GUE and Poisson
+    references": nearest-neighbour spacing ``P(s)`` (left), number variance
+    ``Sigma^2(L)`` (centre) and Dyson--Mehta ``Delta_3(L)`` (right). The
+    deformed-``xp`` spectrum (#23) reproduces the *average* zeros, so its statistics
+    collapse to a near-**picket fence** — ``P(s)`` spikes at ``s=1`` and the rigidity
+    curves stay bounded/flat — while the real zeros follow GUE. The visible gap
+    between the two empirical series *is* the result: matching the mean density
+    (which both do) is necessary but nowhere near sufficient for the GUE
+    fluctuations. Returns the path written.
+    """
+    xp_colour, zero_colour = "#8e44ad", "#5b9bd5"
+    L = np.asarray(lengths, dtype=np.float64)
+    grid = np.geomspace(L.min(), L.max(), 400)
+
+    fig, (ax_p, ax_v, ax_d) = plt.subplots(1, 3, figsize=(15.5, 4.6))
+
+    # P(s): the deformed-xp spacings spike at 1 (picket fence); the zeros follow GUE.
+    centres, dens_xp = spacing.spacing_density(spacings_xp, n_bins=n_bins, s_max=s_max)
+    _, dens_z = spacing.spacing_density(spacings_zeros, n_bins=n_bins, s_max=s_max)
+    width = float(centres[1] - centres[0]) if centres.size > 1 else s_max / n_bins
+    sgrid = np.linspace(1e-3, s_max, 400)
+    ax_p.bar(
+        centres,
+        dens_xp,
+        width=width,
+        color="#e7d6f0",
+        edgecolor=xp_colour,
+        label=f"deformed-$xp$ (N={n_xp})",
+    )
+    ax_p.step(
+        centres,
+        dens_z,
+        where="mid",
+        color=zero_colour,
+        lw=1.7,
+        label=f"real zeros (N={n_zeros:,})",
+    )
+    ax_p.plot(
+        sgrid, spacing.gue_wigner_surmise(sgrid), color="#c0392b", lw=2, label="GUE"
+    )
+    ax_p.plot(
+        sgrid,
+        spacing.poisson_surmise(sgrid),
+        color="#27ae60",
+        lw=2,
+        ls="--",
+        label="Poisson",
+    )
+    ax_p.set_xlim(0.0, s_max)
+    ax_p.set_ylim(bottom=0.0)
+    ax_p.set_xlabel("normalised spacing $s$")
+    ax_p.set_ylabel("probability density $p(s)$")
+    ax_p.set_title("Nearest-neighbour spacing $P(s)$")
+    ax_p.legend(fontsize=8)
+
+    # Sigma^2(L) and Delta_3(L): both empirical series vs GUE (rigid) and Poisson.
+    panels = (
+        (
+            ax_v,
+            sigma2_xp,
+            sigma2_zeros,
+            spacing.gue_number_variance(grid),
+            grid,
+            r"number variance $\Sigma^2(L)$",
+        ),
+        (
+            ax_d,
+            delta3_xp,
+            delta3_zeros,
+            spacing.gue_delta3(grid),
+            grid / 15.0,
+            r"spectral rigidity $\Delta_3(L)$",
+        ),
+    )
+    for ax, emp_xp, emp_z, gue_curve, poisson_curve, ylabel in panels:
+        ax.plot(
+            L,
+            emp_xp,
+            color=xp_colour,
+            lw=1.4,
+            marker="s",
+            ms=3,
+            label=f"deformed-$xp$ (N={n_xp})",
+        )
+        ax.plot(
+            L,
+            emp_z,
+            color=zero_colour,
+            lw=1.4,
+            marker="o",
+            ms=3,
+            label=f"real zeros (N={n_zeros:,})",
+        )
+        ax.plot(grid, gue_curve, color="#c0392b", lw=2, label="GUE")
+        ax.plot(grid, poisson_curve, color="#27ae60", lw=2, ls="--", label="Poisson")
+        ax.set_xscale("log")
+        ax.set_xlabel("window length $L$ (mean spacings)")
+        ax.set_ylabel(ylabel)
+        top = 1.35 * max(
+            float(gue_curve[-1]),
+            float(np.nanmax(emp_xp)),
+            float(np.nanmax(emp_z)),
+        )
+        ax.set_ylim(0.0, top)
+        ax.legend(loc="upper left", fontsize=8)
+
+    ax_v.set_title(r"Number variance $\Sigma^2(L)$")
+    ax_d.set_title(r"Dyson--Mehta $\Delta_3(L)$")
+
+    fig.suptitle(
+        title
+        or "Deformed-$xp$ (picket fence) vs the Riemann zeros (GUE): "
+        "mean density matched, fluctuations not"
+    )
+    fig.tight_layout()
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out
+
+
 def pair_correlation_figure(
     hist: np.ndarray,
     bin_width: float,

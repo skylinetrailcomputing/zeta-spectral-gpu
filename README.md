@@ -34,12 +34,14 @@ it. The discriminating test for **any** idea here:
 Every experiment in this repo states, in its docstring, why it is on the
 forward side of that line.
 
-## Roadmap
+Three forward tracks. In every one, the zeros appear *only* as an output being
+checked — never as input.
 
-| Phase | What | Status |
+| Track | What | Status |
 |---|---|---|
-| **Warm-up** | Spacing / pair-correlation / universality statistics on large zero sets and candidate spectra, on the GPU. Extends `wedgetrigfunctions`' `gue_spacing.py` and scales it. Well-posed, falsifiable, embarrassingly parallel. | 🟢 core statistics landed (spacing, pair-correlation, rigidity); stretch experiments in progress |
-| **Flagship** | Reimplement the **Connes–Consani–Moscovici finite-cutoff spectral-triple operators** (rank-one perturbation of a scaling operator; the matrix is the Weil explicit-formula quadratic form, whose prime content is the Euler/von-Mangoldt sum over primes `p ≤ x = λ²`) and study spectral convergence to the low zeros as the cutoff grows. Forward, prime-driven, on the live research edge. | 🟢 operator pinned (`knowledge/ccm-operator.md`); multiprecision reference reproduces the source §6 table (`ccm.py`, #8); GPU fp64 assembly + λ-sweep convergence/conditioning study landed (`ccm_gpu.py`, #9) |
+| **Warm-up statistics** | GPU spacing / pair-correlation / universality on large zero sets and candidate spectra. Extends `wedgetrigfunctions`' `gue_spacing.py` and scales it. Well-posed, falsifiable, embarrassingly parallel. | 🟢 landed: GUE nearest-neighbour spacing (#5), pair correlation vs the sine kernel (#6), spectral rigidity Σ²(L)/Δ₃(L) (#15), the De Bruijn–Newman forward heat flow (#20), and the unfolding-free spacing-ratio `r̃` (#35) |
+| **xp-Hamiltonian track** *(forward stretch)* | Spectra of *principled* `xp`-type candidate operators: Sierra & Rodríguez-Laguna's geometrically deformed `xp` (#23/#24/#31) and the prime-driven massless-Dirac "Möbius-mirror" forward locator (#25). A contrast to the flagship — do geometry- and prime-built operators carry the mean density and/or the GUE fluctuations? | 🟢 deformed-`xp` CPU secular reference + GPU Galerkin eigensolve + universality read (picket-fence vs GUE); Dirac-mirror locator on CPU/GPU at scale (#38/#40), Dirichlet-`L` generalization (#42), RH-by-contradiction demo (#43). The genuinely-forward fluctuation question is the open spike #44. See `knowledge/deformed-xp.md`, `knowledge/dirac-mirror.md` |
+| **Flagship** | Reimplement the **Connes–Consani–Moscovici finite-cutoff spectral-triple operators** (rank-one perturbation of a scaling operator; the matrix is the Weil explicit-formula quadratic form, whose prime content is the Euler/von-Mangoldt sum over primes `p ≤ x = λ²`) and study spectral convergence to the low zeros as the cutoff grows. Forward, prime-driven, on the live research edge. | 🟢 operator pinned (`knowledge/ccm-operator.md`, #3); multiprecision reference reproduces the source §6 table (`ccm.py`, #8); connes-cvs baseline oracle (#16); GPU fp64 assembly + λ-sweep convergence/conditioning study (`ccm_gpu.py`, #9); CPU-accel — factor-once + parity-reduced eigensolve, gmpy2 backend, ~6× (#17/#18); prime-cutoff rigidity trend toward GUE via the spacing-ratio `r̃` (`knowledge/ccm-universality.md`, #18) |
 
 The flagship operator definition must come from the **primary source**
 (Connes, Consani & Moscovici, *Zeta Spectral Triples*, arXiv:2511.22755, Nov
@@ -87,8 +89,15 @@ then from the repo root:
 ```powershell
 uv sync                  # core (CPU) deps
 uv sync --extra gpu      # add CuPy for the GPU paths
+uv sync --extra oracle   # connes-cvs flagship cross-check oracle (#16, dev only)
+uv sync --extra accel    # gmpy2 — faster multiprecision flagship eigensolve (#17)
 uv run pytest            # CPU tests pass without a GPU; GPU tests self-skip
 ```
+
+The `oracle` and `accel` extras are opt-in like `gpu`, so a plain `uv sync` (and
+CI) stays lean. `oracle` is a dev/cross-check dependency only — never imported at
+runtime (see `knowledge/connes-cvs-oracle.md`); `accel` is pure speed (`mpmath`
+auto-detects `gmpy2` and the values are bit-identical with or without it).
 
 uv reads `.python-version` (3.12) and provisions the interpreter itself — no
 python.org / Microsoft Store Python needed. Run everything through `uv run`
@@ -114,14 +123,23 @@ affect operation. See `CLAUDE.md` for more.
 ```
 src/zeta_spectral_gpu/   library code
   zeros.py               generate/cache Riemann zeros (mpmath) + unfolding
-  spacing.py             CPU reference statistics (the GPU must match these)
+  spacing.py             CPU reference statistics — spacing, pair-correlation,
+                         rigidity, the r̃ ratio (the GPU must match these)
   spacing_gpu.py         GPU statistics via CuPy + the RawModule kernel
-  kernels/spacing.cu     hand-written CUDA C (first kernel target)
-  debruijn_newman.py     forward H_t-zero generator (mpmath) for the DBN flow
+  debruijn_newman.py     forward H_t-zero generator (mpmath) for the DBN flow (#20)
+  deformed_xp.py         Sierra's deformed-xp operator, CPU secular reference (#23)
+  deformed_xp_gpu.py     deformed-xp GPU dense eigensolve (Galerkin + eigh) (#31)
+  dirac_mirror.py        prime-driven massless-Dirac Möbius-mirror locator (#25)
+  dirac_mirror_gpu.py    GPU Möbius-mirror locator scan at scale (#25 Phase 2)
+  dirichlet.py           Dirichlet characters / L-functions for the locator (#42)
   ccm.py                 Connes–Consani–Moscovici operator, mpmath reference (#8)
   ccm_gpu.py             fp64 fill + conditioning probe for the CCM operator (#9)
-  kernels/ccm_assembly.cu  hand-written CUDA C for the Weil-matrix fill
+  oracle.py              loader for the connes-cvs baseline-oracle fixture (#16)
   plots.py               matplotlib figures for the warm-up + flagship statistics
+  _cuda_dll.py           Windows cuSOLVER DLL-path shim for cupy.linalg.eigh
+  kernels/spacing.cu       hand-written CUDA C — spacing reduction (first kernel)
+  kernels/ccm_assembly.cu  hand-written CUDA C — Weil-matrix fill
+  kernels/dirac_mirror.cu  hand-written CUDA C — Möbius mirror-locator sum
 scripts/                 runnable entry points (uv run)
 tests/                   invariants, incl. GPU-vs-CPU agreement
 knowledge/               conceptual notes (why the math looks the way it does)

@@ -10,6 +10,16 @@ top-level `CLAUDE.md`; per-session narrative lives in git history.
 - [`debruijn-newman-flow.md`](debruijn-newman-flow.md) — why the De Bruijn–Newman
   heat flow is a *forward* rigidity experiment (the warm-up spike #20), and the
   precision lesson it shares with the flagship.
+- [`deformed-xp.md`](deformed-xp.md) — Sierra's geometrically deformed `xp`
+  operator (#23/#24/#31): it reproduces the zeros' **mean density** but sits at a
+  rigid picket fence, **not** GUE — the clean forward demonstration that matching
+  the average is necessary but nowhere near sufficient. First entry in the
+  xp-Hamiltonian track.
+- [`dirac-mirror.md`](dirac-mirror.md) — Sierra's prime-driven Möbius-mirror
+  forward **locator** (#25): `|M'_z(n)|` peaks at the ζ (and Dirichlet-`L`) zeros.
+  Why its peak *spacings* are circular (no single-operator spectrum), the four
+  landed phases incl. the RH-by-contradiction demo, and the open forward
+  fluctuation spike #44.
 - [`ccm-operator.md`](ccm-operator.md) — the verified, code-ready spec for the
   flagship Connes–Consani–Moscovici finite-cutoff operator, pinned
   equation-by-equation against arXiv:2511.22755. Read this before implementing

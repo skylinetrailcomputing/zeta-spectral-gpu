@@ -79,8 +79,9 @@ Q(c) = D_inf + D_pole + D_prime
 
 - `D_inf` — archimedean Mellin multiplier, `h_+(τ) = Re ψ(1/4 + iτ/2) − log π`
   (digamma `ψ`). **The cost driver:** ~2.2M high-precision complex-digamma evals,
-  ~80% of wall time; the eigensolve is only ~17%. (This profiling reality is what
-  motivates #17 — Arb digamma + node caching — and the aspirational GPU sweep #18.)
+  ~80% of wall time; the eigensolve is only ~17%. (This profiling reality
+  motivated the CPU-accel work #17/#18, which landed a factor-once, parity-reduced
+  multiprecision eigensolve plus the gmpy2 backend — ~6× on the flagship overall.)
 - `D_pole` — rank-one correction from the pole of `ζ` at `s = 1`.
 - `D_prime` — finite von-Mangoldt sum over primes `p ≤ c`.
 

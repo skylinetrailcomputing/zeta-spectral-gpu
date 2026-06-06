@@ -19,6 +19,9 @@ _KERNEL_SRC = Path(__file__).with_name("kernels") / "spacing.cu"
 
 def _cupy():
     """Import cupy on demand, with a clear error if the GPU extra is missing."""
+    from ._cuda_dll import add_cuda_dll_directories
+
+    add_cuda_dll_directories()  # Windows: nvidia/*/bin on the DLL path (cuSOLVER)
     try:
         import cupy as cp  # noqa: PLC0415
     except ImportError as exc:  # pragma: no cover - environment dependent

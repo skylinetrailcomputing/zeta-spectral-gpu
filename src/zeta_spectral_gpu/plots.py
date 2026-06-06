@@ -637,6 +637,52 @@ def deformed_xp_stats_figure(
     return out
 
 
+def deformed_xp_eigh_convergence_figure(
+    errors_by_n: dict[int, np.ndarray],
+    *,
+    out_path: Path | str,
+    title: str | None = None,
+) -> Path:
+    """Save the deformed-``xp`` GPU-eigh convergence figure (issue #31).
+
+    One curve per Galerkin basis size ``N``: ``|eig_k - secular_k|`` (the GPU
+    eigenvalue vs the #23 secular root) against the eigenvalue index ``k``, on a
+    log ``y`` axis. The signature of spectral convergence is a machine-precision
+    floor for the resolved low modes and a sharp cliff that moves to higher ``k``
+    as ``N`` grows — the dense assembly reproducing the secular reference. Returns
+    the path written.
+    """
+    sizes = sorted(errors_by_n)
+    cmap = plt.get_cmap("viridis")
+    span = (len(sizes) - 1) or 1
+
+    fig, ax = plt.subplots(figsize=(7.5, 5.0))
+    for i, n in enumerate(sizes):
+        err = np.asarray(errors_by_n[n], dtype=np.float64)
+        k = np.arange(1, err.size + 1)
+        ax.semilogy(
+            k,
+            np.maximum(err, 1e-16),  # floor for the log axis
+            color=cmap(0.12 + 0.78 * i / span),
+            lw=1.4,
+            marker="o",
+            ms=3,
+            label=f"$N={n}$",
+        )
+    ax.set_xlabel("eigenvalue index $k$")
+    ax.set_ylabel(r"$|\,\mathrm{eig}_k - E_k^{\mathrm{secular}}\,|$")
+    ax.set_title(title or "Deformed-$xp$ GPU eigensolve vs the secular reference")
+    ax.grid(True, which="both", ls=":", alpha=0.4)
+    ax.legend(title="basis size", loc="upper left")
+    fig.tight_layout()
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out
+
+
 def pair_correlation_figure(
     hist: np.ndarray,
     bin_width: float,

@@ -31,9 +31,6 @@ numbers refer to ``knowledge/ccm-operator.md`` as in :mod:`ccm`.
 from __future__ import annotations
 
 import functools
-import glob
-import os
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -55,26 +52,14 @@ _KERNEL_SRC = Path(__file__).with_name("kernels") / "ccm_assembly.cu"
 # first eigh raises "DLL load failed importing cusolver". Adding the wheel bin
 # dirs via os.add_dll_directory fixes it. NVRTC (the RawModule path) already
 # resolves via cuda-pathfinder, so spacing_gpu never needed this; the eigensolve
-# does.
-
-_CUDA_LIBS_READY = False
+# does. The fix is shared in ``_cuda_dll`` (issue #31 unified the two copies).
 
 
 def _ensure_cuda_libs() -> None:
     """Put the pip-wheel CUDA library dirs on the DLL search path (Windows)."""
-    global _CUDA_LIBS_READY
-    if _CUDA_LIBS_READY:
-        return
-    if os.name == "nt":
-        for p in sys.path:
-            base = os.path.join(p, "nvidia")
-            if os.path.isdir(base):
-                for d in glob.glob(os.path.join(base, "*", "bin")):
-                    try:
-                        os.add_dll_directory(d)
-                    except OSError:  # pragma: no cover - defensive
-                        pass
-    _CUDA_LIBS_READY = True
+    from ._cuda_dll import add_cuda_dll_directories
+
+    add_cuda_dll_directories()
 
 
 def _cupy():

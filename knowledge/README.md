@@ -33,6 +33,13 @@ top-level `CLAUDE.md`; per-session narrative lives in git history.
   the cutoff `x` grows the local statistics relax toward GUE and the
   zero-tracking window converges to the real zeros' `⟨r̃⟩`; why pushing `N` is the
   wrong lever (the pole-locked tail).
+- [`riemann-siegel.md`](riemann-siegel.md) — the GPU Riemann–Siegel ζ-evaluator
+  (#55): a forward-neutral *tool* computing `ζ(1/2 + i t)` / the Hardy `Z` from the
+  Riemann–Siegel expansion in fp64. The `O(√t)` main sum is the embarrassingly-
+  parallel CUDA target (~131× at `t = 1e8`); `Ψ`'s derivatives go through a Cauchy
+  contour to survive its removable singularities, and fp64 has a phase-argument
+  height ceiling (~7 digits by `t = 1e8`). Unlocks zero verification (#51/#60),
+  De Bruijn–Newman at height (#20), and value-distribution work.
 - [`frontier-survey-2026.md`](frontier-survey-2026.md) — the #50 literature
   coverage check (2023–2026 forward spectral / Hilbert–Pólya numerics): the
   Connes-lineage frontier (incl. the 2026 Groskin `connes-cvs` implementation

@@ -360,3 +360,42 @@ def locate_member_zeros(
         local_maxima(np.abs(values), peak_threshold(n))
     ]
     return peaks, backend
+
+
+def locate_family_zeros(
+    discriminants: list[int],
+    n: int,
+    grid: np.ndarray,
+    *,
+    sigma: float = 0.5,
+    prefer_gpu: bool = True,
+) -> tuple[list[np.ndarray], str]:
+    """Batched forward-locate the whole family's zeros in **one** GPU launch (#68).
+
+    The Phase-2 batched generalisation of :func:`locate_member_zeros`: builds every
+    member's quadratic character, scans ``|M'_z(E)|`` for the *entire family* across
+    the whole ``grid`` at once via the batched kernel
+    (:mod:`dirichlet_locator_family_gpu`, GPU NVRTC with a CPU fallback over
+    :func:`dirichlet_locator_family.family_scan`), then reads the peaks per member.
+    Returns ``(per_member_peaks, backend)`` -- ``per_member_peaks[i]`` are the located
+    ordinates of ``L(s, chi_{discriminants[i]})``.
+
+    This is the embarrassingly-parallel forward producer at family scale -- the GPU
+    "scale" leverage #51 called out -- and it consumes no zero (they are read *off*
+    ``|M'_z|``). The precise near-central statistic still uses the mpmath ground
+    truth (:func:`member_rescaled_zeros`); the two are cross-checked in the tests.
+    """
+    from . import dirichlet_locator_family as dlf
+
+    chars = [quadratic_character(d) for d in discriminants]
+    grid = np.asarray(grid, dtype=np.float64)
+    if prefer_gpu:
+        try:
+            from . import dirichlet_locator_family_gpu as gpu
+
+            block = gpu.family_scan_gpu(chars, n, grid, sigma=sigma)
+            return dlf.locate_family_peaks(np.abs(block), grid, n), "gpu"
+        except ImportError:
+            pass  # cupy missing -> CPU reference below
+    block = dlf.family_scan(chars, n, grid, sigma=sigma)
+    return dlf.locate_family_peaks(np.abs(block), grid, n), "cpu"

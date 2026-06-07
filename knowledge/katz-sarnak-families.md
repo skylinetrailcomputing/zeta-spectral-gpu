@@ -100,15 +100,37 @@ Per the house rule, the CPU reference is the truth:
   locator ([`dirac-mirror.md`](dirac-mirror.md), `dirichlet_locator`, GPU NVRTC
   with a CPU fallback) on `χ_d` as the **forward producer at scale**, cross-checked
   against the mpmath zeros. This is where the GPU earns its place — many `L`-functions
-  in parallel — in contrast to the single high-precision flagship eigensolve. A
-  dedicated batched-family GPU kernel (one scan grid across the whole family at
-  once) is the natural Phase-2 follow-up.
+  in parallel — in contrast to the single high-precision flagship eigensolve.
+
+### Phase-2: the batched-family GPU kernel (#68)
+
+The natural follow-up — *one launch for the whole family* instead of looping
+member-by-member — is now in place (`kernels/dirichlet_locator_family.cu`,
+`dirichlet_locator_family.py` CPU reference + `dirichlet_locator_family_gpu.py`
+GPU). A 2-D `(member, E-point)` thread grid scans every member's `|M'_z(E)|` at
+once. Characters vary by period `q = |d|`, so the kernel takes a **packed
+character table** (every member's period-`q` table concatenated) plus per-member
+offsets/periods, with the shared `μ(k) k^{−σ}` and `log k` arrays passed once; the
+residue `k mod q` is carried incrementally (no per-term modulo). Real (quadratic →
+symplectic) characters take a fast real kernel; a complex kernel covers
+higher-order families. `katz_sarnak.locate_family_zeros` and `run_katz_sarnak.py
+--locate` drive the whole family on-GPU.
+
+It is the clean fp64 win the forward ruling anticipated: the batched kernel
+reproduces the CPU reference to **~2 × 10⁻¹⁴** (the located peaks come out
+*bit-identical*), and a one-member family reduces exactly to the single-character
+`dirac_mirror_gpu` kernel (a test pins this). On a 3090, scanning the `|d| ≤ 60`
+family (39 members × 1750 `E`-points × `n = 6000`) runs end-to-end (pack → scan →
+peak-find) in ~0.37 s vs ~9.8 s for the same path on the CPU — **~26× faster**
+(the scan itself far more; the host pack / peak-find is shared overhead). This is
+the GPU "scale" leverage #51 called out, mirroring the Katz–Sarnak `#51 → #68`
+split that the Li-criterion `#52 → #71` work also followed.
 
 ## Reproduce
 
     uv run python scripts/run_katz_sarnak.py                  # family 1-level density + verdict
     uv run python scripts/run_katz_sarnak.py --d-max 80 --plot # larger family, save the figure
-    uv run python scripts/run_katz_sarnak.py --d-max 60 --locate # GPU locator over the family
+    uv run python scripts/run_katz_sarnak.py --d-max 60 --locate # batched GPU locator (#68)
 
 The forward family-density test is marked `slow` (`uv run pytest -m slow` to
 include it); the character algebra, kernels, and discrimination logic run in the

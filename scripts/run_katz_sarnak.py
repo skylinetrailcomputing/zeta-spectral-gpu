@@ -10,9 +10,10 @@ zeros are produced independently per member (mpmath) and only compared; nothing 
 fit (forward, not inverse).
 
 The per-member zero scan is embarrassingly parallel over the family -- the GPU
-angle. ``--locate`` additionally runs the prime-driven mirror locator
-(:mod:`dirichlet_locator`, GPU with CPU fallback) on a sample member and reports
-the GPU-vs-CPU agreement; the precise statistic still uses the mpmath ground truth.
+angle. ``--locate`` runs the **batched** prime-driven mirror locator (#68,
+:mod:`dirichlet_locator_family_gpu`, GPU with CPU fallback): it scans the whole
+family's ``|M'_z(E)|`` in one launch, reports a members/sec throughput and the
+GPU-vs-CPU agreement; the precise statistic still uses the mpmath ground truth.
 
     uv run python scripts/run_katz_sarnak.py
     uv run python scripts/run_katz_sarnak.py --d-max 80 --plot
@@ -79,22 +80,47 @@ def main() -> None:
     print(f"\n  forward verdict: the quadratic family is {verdict.upper()}")
 
     if args.locate:
-        d = next(x for x in family if x < 0)  # a sample member
+        # Batched family locator (#68): scan the WHOLE family's |M'_z(E)| in one GPU
+        # launch (embarrassingly parallel over members), not member-by-member. Time
+        # the scan itself (the parallel-over-family win) apart from the host
+        # pack / peak-find.
+        from zeta_spectral_gpu import dirichlet_locator_family as dlf
+
         grid = np.arange(0.5, 18.0, 0.01)
-        t0 = time.perf_counter()
-        peaks, backend = ks.locate_member_zeros(d, 6000, grid, prefer_gpu=True)
+        n_terms = 6000
+        chars = [ks.quadratic_character(d) for d in family]
+        packed = dlf.pack_family(chars, n_terms)
+
+        backend = "cpu"
+        try:
+            from zeta_spectral_gpu import dirichlet_locator_family_gpu as gpu
+
+            block = gpu.assemble_gpu(packed, grid)  # warm-up: NVRTC JIT compile
+            t0 = time.perf_counter()
+            block = gpu.assemble_gpu(packed, grid)
+            dt = time.perf_counter() - t0
+            backend = "gpu"
+        except ImportError:
+            t0 = time.perf_counter()
+            block = dlf.family_scan(chars, n_terms, grid)
+            dt = time.perf_counter() - t0
+
+        peaks = dlf.locate_family_peaks(np.abs(block), grid, n_terms)
+        total_peaks = sum(p.size for p in peaks)
         print(
-            f"\n  locator on d={d} (chi mod {abs(d)}): {backend} backend, "
-            f"{peaks.size} peaks in {time.perf_counter() - t0:.3f}s"
+            f"\n  batched family locator: {backend} backend, {len(family)} members "
+            f"x {grid.size} E-points x n={n_terms} scanned in {dt:.3f}s "
+            f"({len(family) / dt:.0f} members/s, {total_peaks} located peaks)"
         )
         if backend == "gpu":
-            cpu_peaks, _ = ks.locate_member_zeros(d, 6000, grid, prefer_gpu=False)
-            agree = (
-                float(np.max(np.abs(np.sort(peaks) - np.sort(cpu_peaks))))
-                if peaks.size == cpu_peaks.size
-                else float("nan")
+            t0 = time.perf_counter()
+            ref = dlf.family_scan(chars, n_terms, grid)
+            dt_cpu = time.perf_counter() - t0
+            agree = float(np.max(np.abs(block - ref)))
+            print(
+                f"  CPU reference scan: {dt_cpu:.3f}s ({dt_cpu / dt:.0f}x slower); "
+                f"GPU-vs-CPU max|M'_z|={agree:.2e}"
             )
-            print(f"  GPU-vs-CPU located-peak max|dE|={agree:.2e}")
 
     if args.plot:
         from zeta_spectral_gpu import plots

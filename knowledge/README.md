@@ -68,6 +68,11 @@ top-level `CLAUDE.md`; per-session narrative lives in git history.
   tracking the RH growth law `(n/2)(log n + γ − 1 − log 2π)`. mpmath-bound
   (cancellation + Stieltjes precision); the GPU angle is the parallel-over-family
   GRH sweep `λ_n(χ)`, not a deeper single-`ζ` pass.
+- [`bibliography.md`](bibliography.md) — the primary source papers behind the
+  experiments, with stable arXiv links and which note/issue uses each. The
+  tracked index of the (gitignored) local PDF cache, so contributors can see the
+  sources and the cache is rebuildable. Per-note `Sources` sections still hold the
+  secondary literature.
 - [`predecessor/`](predecessor/) — distilled, public-safe archive of the CPU
   predecessor `wedgetrigfunctions202601` (private): the harmonic-functions →
   conical → hyperbolic/Selberg → GUE arc, and the arithmetic-chaos headline

@@ -85,26 +85,68 @@ signal). A plain float64 sweep saturates after a few dozen coefficients. So, as
 CLAUDE.md warns, this is **not** "one big fp64 pass" — it is an mpmath computation.
 
 Consequently the GPU charter angle is **not** a single deeper `ζ` Li sweep (that is
-precision-bound, mpmath's job). It is the **parallel-over-family** generalisation,
-exactly mirroring the Katz–Sarnak track ([`katz-sarnak-families.md`](katz-sarnak-families.md),
-#51 → batched-kernel #68): the **Generalized** Riemann Hypothesis for a Dirichlet
-`L`-function `L(s, χ)` is equivalent to the non-negativity of *its* Li coefficients
-`λ_n(χ)`, computed forward from `log Λ(s, χ)` (the completed `L`-function) with the
-character's own generalized-Stieltjes data. Each character is an independent,
-zero-free forward computation; a whole family of hundreds of characters is
-embarrassingly parallel — the natural Phase-2, reusing the `dirichlet` period-array
-machinery. The single-`ζ` module here is the CPU reference that a batched family
-sweep would scale.
+precision-bound, mpmath's job). It is the **parallel-over-family** generalisation
+(Phase-2, #71, delivered below), exactly mirroring the Katz–Sarnak track
+([`katz-sarnak-families.md`](katz-sarnak-families.md), #51 → batched-kernel #68).
+
+## Phase-2: the GRH family sweep (#71)
+
+The **Generalized** Riemann Hypothesis for a Dirichlet `L`-function `L(s, χ)` is
+equivalent to the non-negativity of *its* Li coefficients. For a primitive
+non-principal character `χ` mod `q`, the completed `L`-function
+
+    Λ(s, χ) = (q/π)^{(s+a)/2} Γ((s+a)/2) L(s, χ),   a = 0 (χ even) / 1 (χ odd),
+
+is entire of order 1 with zeros exactly the nontrivial zeros of `L(s, χ)`, so the
+**same** Bombieri–Lagarias combination carries over: with
+`log Λ(1+u, χ) = Σ_k a_k(χ) u^k`,
+
+    λ_n(χ) = n · Σ_{j=0}^{n−1} C(n−1, j) · a_{n−j}(χ).
+
+The only new input over the `ζ` case is the character. The `a_k(χ)` are assembled
+factor-by-factor exactly as before, now **parity-aware**: the gamma/`(q/π)` terms use
+`arg = (1+a)/2` (polygamma at `½` for even `χ`, at `1` for odd), and the
+`log[(s−1)ζ]` factor is replaced by `log L(1+u, χ)` — whose Taylor coefficients are
+the character's **generalized-Stieltjes data** (here taken as a forward Cauchy/Taylor
+pass over the entire `L`; the tests anchor them against the explicit
+`Σ_r χ(r) γ_n(r/q)` closed form). **No zero of any `L`-function is consumed.**
+
+**Real vs complex — the verdict.** For a **complex** character `λ_n(χ)` is complex and
+GRH is equivalent to `Re λ_n(χ) ≥ 0` for all `n` (Omar–Mazhouda 2007). For a **real**
+(quadratic) character the zero multiset is conjugate-symmetric, so `λ_n(χ)` comes out
+real — the imaginary part is `~0`, a built-in sanity check (`imag_residual`). Over the
+swept families (quadratic fundamental discriminants and prime-modulus characters)
+every `Re λ_n(χ)` is **strictly positive** — GRH-consistent across the family (a finite
+range, so not a proof); the run reports the tightest margin and which character holds
+it. The real/complex split is drawn in the family figure (the symmetry-type contrast).
+
+**Where the GPU fits (honestly).** Each character is an independent forward
+computation, so the family is embarrassingly parallel — one CUDA **block per
+character** (`kernels/li_criterion_family.cu`), assembling the whole family's `λ_n` in
+fp64. Following CLAUDE.md's precision rule, the split is: the precision-delicate
+analytic inputs (the `log L` Taylor coefficients) are mpmath's job on the host; the GPU
+does the fp64 *assembly* (the `log`-power-series recurrence, the gamma/`(q/π)` terms,
+the Li combination, and the `min Re λ_n`/positivity reduction). fp64 saturates the
+binomial cancellation past a few dozen coefficients, so the GPU is the **small-`n`
+family producer** and `test_li_criterion_family.py` pins GPU-vs-CPU agreement there.
+(The prime-family complex characters are *already* fp64-bound by their `np.exp`-built
+representation, so the GPU path matches them naturally.) A shared GPU
+generalized-Stieltjes kernel that would also produce the inputs on-device — for deeper
+`n` and faster families — is the documented follow-up, mirroring the `#51 → #68` split.
 
 ## Reproduce
 
     uv run python scripts/run_li_criterion.py              # λ_1..λ_40, verdict + figure
     uv run python scripts/run_li_criterion.py --N 80 --dps 130   # deeper, more digits
+    uv run python scripts/run_li_criterion.py --family quadratic --qmax 24 --N 20
+    uv run python scripts/run_li_criterion.py --family prime --qmax 13 --N 16
 
-The fast suite (`test_li_criterion.py`) pins the closed form, the published
-values, the independent Cauchy cross-check, positivity, the growth law, and the
-structural forward guarantee (it poisons `mpmath.zetazero` and confirms the
-computation still runs — no zero consumed).
+The fast suite (`test_li_criterion.py`) pins the closed form, the published values,
+the independent Cauchy cross-check, positivity, the growth law, and the structural
+forward guarantee (it poisons `mpmath.zetazero` and confirms the computation still
+runs — no zero consumed). `test_li_criterion_family.py` adds the family checks:
+agreement with the independent generalized-Stieltjes closed form, the real-vs-complex
+distinction, the family GRH verdict, and the GPU-vs-CPU small-`n` agreement.
 
 ## Sources
 

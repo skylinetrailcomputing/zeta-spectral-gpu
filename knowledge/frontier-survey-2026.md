@@ -79,6 +79,23 @@ no per-zero structure; (iii) the actual zero-matching is **Conjecture 1**, an
 inverse (Wu–Sprung with Hecke dressing); (iv) the truncated model is a trivial
 2×2 fiber `±|E_n(κ)−E_*+m|` with no eigensolve/precision/GPU surface. It adds
 nothing past the prime-built Möbius-mirror locator (#25) or the CCM flagship.
+
+**What is genuinely novel — and what would flip the verdict.** The structural
+contribution is real: it sidesteps the **gaplessness barrier** (no compact
+perturbation can create isolated eigenvalues in gapless essential spectrum) by
+hosting the arithmetic eigenvalues in **Floquet gaps**, and reads the zeros off
+**spectral-shift discontinuities** rather than a raw spectrum (the §6
+self-adjointness + Weyl essential-spectrum stability are correct and
+unconditional). But that novelty lives in the *background architecture*; the
+paper supplies **no forward mechanism placing the jumps at `γ_k`** — that gap is
+exactly Conjecture 1. So F6 is worth **revisiting only if** a future result
+supplies all three of: (a) *real* automorphic Hecke data (not the random
+synthetic modes of §5.2); (b) a coefficient family `η_p` **derived** from the
+arithmetic rather than fitted to the zeros; and (c) demonstrated convergence of
+the spectral-shift jumps to the zeros, beyond the disposable 2-parameter affine
+rescale. Absent (a)–(c) it stays a non-converging visual fit, and the same
+inverse-conjecture trap (b guards against) re-applies.
+
 Adjacent to the [Dirac-mirror track](dirac-mirror.md).
 
 ## 4. Ranked forward-experiment candidates
@@ -120,8 +137,13 @@ multiprecision on CPU; the GPU's leverage is parallel statistics and operator
    families don't reproduce the zeros (random synthetic Hecke data, MAE ≈ 7–17, no
    convergence, author-disclaimed); the matching is deferred to an inverse
    existence conjecture; and the truncated model is a trivial 2×2 fiber with no
-   eigensolve/GPU surface. Adds nothing past #25/the flagship. (Full ruling:
-   maintainer `_private/issue-66-hateley-ruling.md`.)
+   eigensolve/GPU surface. Adds nothing past #25/the flagship. The novel part is
+   the *background* (Floquet gaps dodging the gaplessness barrier; zeros as
+   spectral-shift jumps), not a mechanism placing the jumps at `γ_k`. **Revisit
+   only if** a future result has all of: real automorphic Hecke data, a `η_p`
+   *derived* from the arithmetic (not fitted), and demonstrated jump→zero
+   convergence past the affine rescale. (Full ruling: maintainer
+   `_private/issue-66-hateley-ruling.md`.)
 
 The litmus that tags F2–F5 as forward despite their iterative shape: the only
 legal external anchor in the loop is the **primes** (or a prime-defined

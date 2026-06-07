@@ -80,10 +80,12 @@ Two load-bearing consequences:
    | 13 | `3.9e-34` | `1.4e+01` | `1.4e+01` |
    | 15 | `4.0e-44` | `2.4e+01` | `2.4e+01` |
 
-   The fp64 "error" is **entirely** `ξ`-corruption. So Śliwiński's Conjecture-4.1
-   numerics (run at ~7 digits) cannot be separating the genuine inverse-log law
-   from the precision wall; a high-precision check can. *(Theorem 3.1 is rigorous
-   and precision-independent — this caveat is only about the numerical Conj 4.1.)*
+   The fp64 "error" is **entirely** `ξ`-corruption — *over the low zeros*. This is
+   the regime where Groskin's super-exponential convergence lives, so a fp64
+   "measurement" there is the precision wall, not the finite-cutoff law. **This does
+   *not* extend to Śliwiński's uniform-error Conjecture 4.1**, which is edge-dominated
+   — see the #82 correction below. *(Theorem 3.1 is rigorous and precision-independent
+   — untouched either way.)*
 
 ## The edge picture (Theorem 3.1, high precision)
 
@@ -106,6 +108,47 @@ not chase the exact full-`N` edge roots: near the edge the secular roots cluster
 picket-like and the root-finder — built for the clean low zeros — is unreliable
 there. The constant `lim E·ln λ = 1?` therefore needs scale beyond high-precision
 reach, exactly why Śliwiński went to fp64 at `κ = 7500`.)
+
+## #82: the edge is robust — the "Conj 4.1 ≈ precision wall" caveat overclaims
+
+The Phase-0 corruption finding above is measured on the **low** zeros. Conjecture
+4.1, though, is about the **uniform** error `E = max_k |ν_k − ζ_k|`, which is
+**edge-dominated**: the largest error sits at the resolution edge `k → N`, where the
+`N`-th eigenvalue is pinned to the window-edge pole `d_N = 2πN/L`. Does fp64
+`ξ`-corruption reach *there*? If the edge is robust, the caveat evaporates.
+
+[`ccm_convergence.edge_corruption_profile`](../src/zeta_spectral_gpu/ccm_convergence.py)
+answers it forward: compute the genuine (mpmath) and the fp64-`ξ` spectra through the
+*same* secular root-finder (only `ξ` differs), compare both to the zeros
+index-by-index, and tag each root by its pole gap. At `x = 13`, `dps = 88`:
+
+- **The corruption is confined to the low / near-null band and decays toward the
+  edge.** Near the edge the fp64 and mpmath roots land in the *same* pole gap — both
+  pinned to the bulk `d_n` — so `|ν_k^{fp64} − ν_k^{mpmath}|` falls to `~1` there,
+  while in the low band it is `~10–20`. The edge is the diagonal `diag(2πn/L)`, *not*
+  the `ξ` direction fp64 destroys — exactly as the structure predicts.
+- **The low-band corruption is bounded in `N`; the genuine edge error grows `~ζ_N`.**
+  So there is a crossover `N` above which fp64's uniform error `E` is set by the
+  genuine (robust) edge, not the corrupted low band:
+
+  | `N` (`x = 13`) | genuine edge error | low-band corruption | fp64's `E` set by |
+  |---|---|---|---|
+  | 80  | `6.0`  | `13.7` | corrupted **low band** |
+  | 120 | `30.1` | `19.9` | genuine **edge** (`k = 115`) |
+  | 160 | `58.1` | `12.6` | genuine **edge** (`k = 152`) |
+
+  The crossover is already at `N ≈ 120` — fully high-precision-reachable. Śliwiński's
+  `κ = N = λ ~ 7050` sits *far* above it, where the genuine edge error (`~ζ_N`,
+  thousands) dwarfs the bounded `ξ`-corruption (`O(10)`).
+
+**Verdict (NO-GO).** A fp64 measurement of the *uniform* error `E` is edge-dominated
+at Śliwiński's scale, and the edge is robust to `ξ`-corruption. So Conjecture 4.1's
+fp64 numerics are **plausibly genuine**, not a precision artifact. The
+"Conj 4.1 ≈ precision wall" framing **overclaims**: the precision wall is real for
+the **low** zeros (Groskin's super-exponential regime — the Phase-0 table above), but
+*not* for Śliwiński's uniform-error law. Theorem 3.1 is untouched (rigorous,
+precision-independent). No Śliwiński outreach is warranted on the strength of the
+caveat. Reproduce: `scripts/run_ccm_convergence.py --mode edge-corruption`.
 
 ## Does acceleration help? (F2 — the negative result)
 
@@ -130,11 +173,15 @@ flagship already get is from raw precision, not extrapolation.
   inverse-log behaviour is the resolution edge. **Done, high precision.**
 - (b) **Does acceleration sharpen the `c → ∞` estimates:** **no**, and the reason
   is the super-exponential low-zero convergence. **Done (negative).**
-- **Bonus:** a precision-artifact caveat on Śliwiński's numerical Conjecture 4.1.
+- **Bonus, then corrected (#82):** the precision-artifact caveat applies to the
+  **low** zeros, *not* to Śliwiński's uniform-error Conjecture 4.1 — its `E` is
+  edge-dominated and the edge is robust to `ξ`-corruption, so the fp64 measurement is
+  plausibly genuine. **NO-GO** on any outreach. See "#82: the edge is robust" above.
 
-What is *not* reachable here: Śliwiński's `κ ∼ 7000` scale (fp64-only, and fp64
-corrupts the spectrum) and a clean confirmation of `lim E·ln λ = 1` (needs that
-scale). Documented rather than faked.
+What is *not* reachable here: Śliwiński's `κ ∼ 7000` scale (fp64-only; fp64 corrupts
+the **low** spectrum, though the edge that dominates `E` is pole-pinned and robust,
+#82) and a clean confirmation of `lim E·ln λ = 1` (needs that scale). Documented
+rather than faked.
 
 ## Sources
 

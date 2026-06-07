@@ -10,6 +10,12 @@ the zeros are only the yardstick. Four studies (Sliwinski arXiv:2601.12133):
   edge       -- The per-index error profile vs the Heisenberg floor 1/(4 ln lambda)
                 (Thm 3.1): low zeros sit far below it (super-exp), the floor is a
                 resolution-EDGE phenomenon.
+  edge-corruption -- (#82) Is fp64 xi-corruption confined to the low/near-null band,
+                or does it also hit the EDGE eigenvalues that dominate Sliwinski's
+                uniform error E (Conj 4.1)? Splits the per-index corruption low vs
+                edge across a truncation sweep and locates the crossover N above
+                which fp64's E is set by the genuine (robust) edge, not corruption.
+                Gates any Sliwinski outreach; the answer here is NO-GO.
   accelerate -- Exploit the law (F2): Wynn-epsilon / Aitken extrapolation of a
                 zero's cutoff-sequence toward x -> infinity, vs the raw best cutoff.
                 The honest answer is NEGATIVE: where the convergence is clean (the
@@ -285,6 +291,101 @@ def study_tracking(
 
 
 # ----------------------------------------------------------------------------
+# edge-corruption: is fp64 xi-corruption confined to the low band? (#82)
+# ----------------------------------------------------------------------------
+
+
+def study_edge_corruption(ns: list[int], *, x: int, dps: int | None = None) -> dict:
+    """Does fp64 ``xi``-corruption hit the **edge** eigenvalues, or only the low ones?
+
+    The #82 spike gating any Sliwinski outreach. For each truncation ``N`` (fixed
+    cutoff ``x``) split the per-index ``xi``-corruption ``|nu_k^{fp64} - nu_k^{mpmath}|``
+    into the low / near-null band and the resolution edge (:func:`cc.edge_corruption_profile`).
+
+    The finding: the corruption is **bounded and concentrated in the low band**
+    (the ``xi``-direction), while the genuine edge error grows ``~ zeta_N`` with the
+    truncation. So there is a crossover ``N`` above which fp64's *uniform* error
+    ``E = max_k |nu_k - zeta_k|`` is set by the genuine (robust) edge rather than by
+    the corrupted low band — i.e. a fp64 measurement of ``E`` (Sliwinski's Conj 4.1)
+    is edge-dominated and plausibly genuine. We exhibit the crossover on the
+    reachable scale; Sliwinski's ``kappa ~ 7000`` sits far above it.
+
+    Forward: the spectra are the prime-built operator's; the zeros only score them.
+    """
+    print(f"\n[edge-corruption] low vs edge fp64 xi-corruption (x={x})")
+    print(
+        f"{'N':>4} {'cnt':>4} {'k_flr':>5} {'lo_corr':>8} {'ed_corr':>8} "
+        f"{'ed_gen':>8} {'E_fp64':>8} {'E_band':>7} {'E_gen':>8}"
+    )
+    rows = []
+    focus = None
+    for N in ns:
+        prof = cc.edge_corruption_profile(N, mp.sqrt(x), dps=dps)
+        s = cc.summarize_edge_bands(prof)
+        rows.append(
+            {
+                "N": N,
+                "count": prof.count,
+                "k_floor": prof.k_floor,
+                "low_corruption": s["low"]["max_corruption"],
+                "edge_corruption": s["edge"]["max_corruption"],
+                "edge_genuine": s["edge"]["max_genuine"],
+                "E_fp64": s["E_fp64"],
+                "E_genuine": s["E_genuine"],
+                "E_band": s["E_argmax_band"],
+            }
+        )
+        print(
+            f"{N:>4} {prof.count:>4} {str(prof.k_floor):>5} "
+            f"{s['low']['max_corruption']:>8.2f} {s['edge']['max_corruption']:>8.2f} "
+            f"{s['edge']['max_genuine']:>8.2f} {s['E_fp64']:>8.2f} "
+            f"{s['E_argmax_band']:>7} {s['E_genuine']:>8.2f}"
+        )
+        focus = prof  # keep the deepest profile for the per-index figure
+
+    crossover = next((r["N"] for r in rows if r["E_band"] == "edge"), None)
+    edge_robust = all(r["edge_corruption"] < r["low_corruption"] + 1e-9 for r in rows)
+    print(
+        f"  edge corruption < low corruption for every N: {edge_robust} "
+        f"(corruption is concentrated in the low / near-null band)"
+    )
+    if crossover is not None:
+        print(
+            f"  crossover at N={crossover}: above it fp64's uniform error E is set by "
+            f"the genuine (robust) resolution edge, not the corrupted low band"
+        )
+    else:
+        print("  no crossover in this N range: low-band corruption still sets E")
+    print(
+        "  VERDICT: fp64 xi-corruption is confined to the low/near-null band; the "
+        "edge eigenvalues are pole-pinned and robust. A fp64 uniform-error sweep at "
+        "Sliwinski's kappa~7000 is edge-dominated -> plausibly genuine. NO-GO on "
+        "outreach; the 'Conj 4.1 ~ precision wall' caveat overclaims (it holds for "
+        "the LOW zeros only)."
+    )
+    return {
+        "x": x,
+        "dps": focus.dps if focus else dps,
+        "rows": rows,
+        "crossover_N": crossover,
+        "edge_robust": edge_robust,
+        "focus": {
+            "N": focus.N,
+            "count": focus.count,
+            "k_floor": focus.k_floor,
+            "bound": focus.bound,
+            "genuine": focus.genuine,
+            "fp64_error": focus.fp64_error,
+            "corruption": focus.corruption,
+            "gap_mpmath": focus.gap_mpmath,
+            "gap_fp64": focus.gap_fp64,
+        }
+        if focus
+        else None,
+    }
+
+
+# ----------------------------------------------------------------------------
 # accelerate: extrapolate a moderate zero's cutoff-sequence
 # ----------------------------------------------------------------------------
 
@@ -337,7 +438,14 @@ def main() -> None:
     )
     ap.add_argument(
         "--mode",
-        choices=["artifact", "edge", "accelerate", "tracking", "all"],
+        choices=[
+            "artifact",
+            "edge",
+            "edge-corruption",
+            "accelerate",
+            "tracking",
+            "all",
+        ],
         default="all",
     )
     ap.add_argument("--N", type=int, default=80)
@@ -360,6 +468,19 @@ def main() -> None:
         default=1e-3,
         help="relative tolerance defining the tracked block for k*(x)",
     )
+    ap.add_argument(
+        "--edge-corruption-N",
+        type=int,
+        nargs="+",
+        default=[60, 80, 100, 120, 160],
+        help="truncations N for the #82 edge-corruption crossover sweep",
+    )
+    ap.add_argument(
+        "--edge-corruption-x",
+        type=int,
+        default=13,
+        help="prime cutoff x for the #82 edge-corruption sweep",
+    )
     ap.add_argument("--refresh", action="store_true")
     ap.add_argument("--out-dir", type=Path, default=DATA)
     args = ap.parse_args()
@@ -376,6 +497,14 @@ def main() -> None:
         e = study_edge(13, N=max(args.N, 120), dps=None)
         out = plots.ccm_convergence_edge_figure(
             e, out_path=args.out_dir / "ccm_convergence_edge.png"
+        )
+        print(f"  figure -> {out}")
+    if args.mode == "edge-corruption":
+        ec = study_edge_corruption(
+            args.edge_corruption_N, x=args.edge_corruption_x, dps=None
+        )
+        out = plots.ccm_edge_corruption_figure(
+            ec, out_path=args.out_dir / "ccm_edge_corruption.png"
         )
         print(f"  figure -> {out}")
     if args.mode in ("accelerate", "all"):

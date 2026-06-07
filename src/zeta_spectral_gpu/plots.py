@@ -1298,6 +1298,131 @@ def ccm_tracking_range_figure(study: dict, *, out_path: Path | str) -> Path:
     return out
 
 
+def ccm_edge_corruption_figure(study: dict, *, out_path: Path | str) -> Path:
+    """Where does fp64 ``xi``-corruption land — low band or the edge? (issue #82).
+
+    ``study`` is the dict from ``run_ccm_convergence.study_edge_corruption``. Left:
+    the per-index profile at the deepest truncation — the genuine error climbs
+    super-exponentially from the low zeros toward the resolution edge, the
+    ``xi``-corruption is **large in the low / near-null band and decays toward the
+    edge** (the edge eigenvalues are pinned to the bulk poles ``d_n`` and robust),
+    so the fp64 error tracks the corruption in the low band and the genuine error at
+    the edge. Right: the crossover — the low-band corruption is bounded in ``N`` while
+    the genuine edge error grows ``~ zeta_N``; above the crossover ``N`` fp64's
+    uniform error ``E`` is set by the genuine (robust) edge, so a fp64 Conj-4.1 sweep
+    is edge-dominated and plausibly genuine. Forward: zeros score only.
+    """
+    focus = study["focus"]
+    rows = sorted(study["rows"], key=lambda r: r["N"])
+    clip = 1e-300
+
+    fig, (ax_p, ax_c) = plt.subplots(1, 2, figsize=(11.0, 4.5))
+
+    # Left: per-index profile at the deepest N.
+    k = np.arange(1, focus["count"] + 1)
+    genuine = np.clip(np.asarray(focus["genuine"], dtype=np.float64), clip, None)
+    fp64e = np.clip(np.asarray(focus["fp64_error"], dtype=np.float64), clip, None)
+    corr = np.clip(np.asarray(focus["corruption"], dtype=np.float64), clip, None)
+    ax_p.semilogy(
+        k,
+        genuine,
+        color="#c0392b",
+        lw=1.6,
+        marker="o",
+        ms=3,
+        label=r"genuine $|\nu_k^{\mathrm{mpmath}}-\zeta_k|$",
+    )
+    ax_p.semilogy(
+        k,
+        fp64e,
+        color="#5b9bd5",
+        lw=1.4,
+        marker="s",
+        ms=3,
+        label=r"fp64 $|\nu_k^{\mathrm{fp64}}-\zeta_k|$",
+    )
+    ax_p.semilogy(
+        k,
+        corr,
+        color="#7f8c8d",
+        lw=1.4,
+        ls="--",
+        marker="^",
+        ms=3,
+        label=r"corruption $|\nu_k^{\mathrm{fp64}}-\nu_k^{\mathrm{mpmath}}|$",
+    )
+    if focus.get("k_floor"):
+        ax_p.axvline(
+            focus["k_floor"] + 1,
+            color="#27ae60",
+            lw=1.2,
+            ls=":",
+            label=f"resolution edge $k={focus['k_floor']}$",
+        )
+    ax_p.set_xlabel("eigenvalue index $k$")
+    ax_p.set_ylabel("error")
+    ax_p.set_title(
+        f"Per-index profile ($N={focus['N']}$, $x={study['x']}$): "
+        "corruption is low-band"
+    )
+    ax_p.legend(fontsize=8, loc="lower right")
+
+    # Right: the crossover in N.
+    ns = np.array([r["N"] for r in rows], dtype=np.float64)
+    lo_corr = np.array([r["low_corruption"] for r in rows])
+    ed_gen = np.array([r["edge_genuine"] for r in rows])
+    e_fp64 = np.array([r["E_fp64"] for r in rows])
+    ax_c.plot(
+        ns,
+        lo_corr,
+        color="#7f8c8d",
+        lw=1.8,
+        marker="^",
+        label="low-band corruption (bounded)",
+    )
+    ax_c.plot(
+        ns,
+        ed_gen,
+        color="#c0392b",
+        lw=1.8,
+        marker="o",
+        label=r"genuine edge error $\sim\zeta_N$",
+    )
+    ax_c.plot(
+        ns,
+        e_fp64,
+        color="#5b9bd5",
+        lw=1.4,
+        ls="--",
+        marker="s",
+        label=r"fp64 uniform error $E$",
+    )
+    if study.get("crossover_N"):
+        ax_c.axvline(
+            study["crossover_N"],
+            color="#27ae60",
+            lw=1.2,
+            ls=":",
+            label=f"crossover $N={study['crossover_N']}$",
+        )
+    ax_c.set_xlabel("truncation $N$")
+    ax_c.set_ylabel("error magnitude")
+    ax_c.set_title("Crossover: genuine edge overtakes low-band corruption")
+    ax_c.legend(fontsize=8, loc="upper left")
+
+    fig.suptitle(
+        r"fp64 $\xi$-corruption is confined to the low band; the edge is "
+        "pole-pinned and robust (#82)"
+    )
+    fig.tight_layout()
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out
+
+
 def li_coefficients_figure(result, *, out_path: Path | str) -> Path:
     """Forward Li coefficients ``lambda_n`` and the RH growth law (issue #52).
 

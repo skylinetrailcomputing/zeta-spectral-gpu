@@ -99,6 +99,117 @@ def test_fp64_corruption_genuine_below_fp64():
     )
 
 
+def test_edge_corruption_confined_to_low_band():
+    # #82: fp64 xi-corruption is concentrated in the low / near-null band; the edge
+    # eigenvalues are pinned to the bulk poles d_n and robust. N must be large enough
+    # that the resolution edge is actually reached (k_floor is a real index).
+    prof = cc.edge_corruption_profile(80, mp.sqrt(13), dps=70)
+    assert prof.k_floor is not None and prof.count > prof.k_floor  # edge is reached
+    s = cc.summarize_edge_bands(prof)
+    # The corruption is larger in the low band than at the edge -- confined to the
+    # near-null xi-direction, not the edge.
+    assert s["edge"]["max_corruption"] < s["low"]["max_corruption"]
+    # In the low band the genuine error is super-exp small while fp64 is O(1): the
+    # fp64 low spectrum is *entirely* xi-corruption.
+    assert s["low"]["max_genuine"] < 1.0
+    assert s["low"]["max_corruption"] > 1.0
+
+    # Near the edge the fp64 and mpmath roots converge to the SAME pole gap
+    # (pole-pinned), whereas the low band is gap-scrambled -- the robustness
+    # signature. Compare the mean gap mismatch head vs tail.
+    def mean_gap_diff(sl):
+        gm, gf = prof.gap_mpmath[sl], prof.gap_fp64[sl]
+        return sum(abs(a - b) for a, b in zip(gm, gf)) / max(1, len(gm))
+
+    assert mean_gap_diff(slice(prof.count - 8, prof.count)) < mean_gap_diff(slice(0, 8))
+
+
+def test_summarize_edge_bands_crossover_readout():
+    # The crossover readout on synthetic bands: E = max_k |nu_k - zeta_k| is set by
+    # whichever is larger -- the bounded low-band corruption (small N) or the genuine
+    # resolution edge (large N). E_argmax_band flips low -> edge across the crossover.
+    common = dict(
+        N=10,
+        cutoff=mp.mpf(13),
+        dps=50,
+        count=6,
+        corruption=[10.0, 9.0, 8.0, 2.9, 2.0, 0.5],
+        gap_mpmath=[5, 7, 9, 10, 11, 12],
+        gap_fp64=[2, 4, 6, 9, 11, 12],
+        bound=0.2,
+        k_floor=3,
+    )
+    # case A: genuine edge (5) < low-band corruption (10) -> E is low-band (corrupted)
+    a = cc.EdgeCorruption(
+        genuine=[1e-30, 1e-20, 1e-10, 0.3, 2.0, 5.0],
+        fp64_error=[10.0, 9.0, 8.0, 3.0, 4.0, 5.2],
+        **common,
+    )
+    sa = cc.summarize_edge_bands(a)
+    assert sa["k_split"] == 3
+    assert sa["low"]["max_corruption"] == 10.0
+    assert sa["E_argmax_band"] == "low"
+    # case B: genuine edge grows to 30 -> the (robust) edge sets E -> edge-dominated
+    b = cc.EdgeCorruption(
+        genuine=[1e-30, 1e-20, 1e-10, 0.3, 15.0, 30.0],
+        fp64_error=[10.0, 9.0, 8.0, 3.0, 16.0, 30.5],
+        **common,
+    )
+    sb = cc.summarize_edge_bands(b)
+    assert sb["E_argmax_band"] == "edge"
+    assert sb["edge"]["max_genuine"] == 30.0
+
+
+def test_edge_corruption_figure_renders(tmp_path):
+    study = {
+        "x": 13,
+        "crossover_N": 120,
+        "edge_robust": True,
+        "rows": [
+            {
+                "N": 80,
+                "low_corruption": 13.7,
+                "edge_corruption": 3.8,
+                "edge_genuine": 6.0,
+                "E_fp64": 13.7,
+                "E_genuine": 6.0,
+                "E_band": "low",
+            },
+            {
+                "N": 120,
+                "low_corruption": 19.9,
+                "edge_corruption": 9.0,
+                "edge_genuine": 30.1,
+                "E_fp64": 28.8,
+                "E_genuine": 30.1,
+                "E_band": "edge",
+            },
+            {
+                "N": 160,
+                "low_corruption": 12.6,
+                "edge_corruption": 8.2,
+                "edge_genuine": 58.1,
+                "E_fp64": 65.4,
+                "E_genuine": 58.1,
+                "E_band": "edge",
+            },
+        ],
+        "focus": {
+            "N": 160,
+            "count": 6,
+            "k_floor": 3,
+            "bound": 0.195,
+            "genuine": [1e-50, 1e-30, 1e-10, 0.3, 5.0, 30.0],
+            "fp64_error": [10.0, 9.0, 8.0, 3.0, 6.0, 30.0],
+            "corruption": [10.0, 9.0, 8.0, 2.9, 2.0, 0.5],
+            "gap_mpmath": [5, 7, 9, 10, 11, 12],
+            "gap_fp64": [2, 4, 6, 9, 11, 12],
+        },
+    }
+    out = plots.ccm_edge_corruption_figure(study, out_path=tmp_path / "ec.png")
+    assert out.exists() and out.stat().st_size > 0
+
+
 def test_accelerate_zero_reports_errors_and_is_forward():
     # A synthetic super-exponential cutoff-sequence converging to a known limit:
     # the raw last term is already excellent, so acceleration cannot beat it

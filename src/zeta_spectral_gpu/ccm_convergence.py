@@ -220,6 +220,39 @@ def tracking_height(zeros, k_star: int):
 # ----------------------------------------------------------------------------
 
 
+def _fp64_even_eigenvector(N: int, lam) -> tuple[np.ndarray, float]:
+    """The fp64 near-null even eigenvector ``xi`` of ``QW_lambda^N`` (the corrupted
+    one the fp64 path yields), and its ``|eigenvalue|`` ``eps_fp64``.
+
+    ``eigh`` of the fp64-assembled Weil matrix, take the smallest-``|eigenvalue|``
+    vector, symmetrise to the even subspace (Def. 5.3) and normalise. Returns the
+    length-``2N+1`` numpy array (indexed ``i -> n = i - N``) and the corresponding
+    smallest ``|eigenvalue|``. fp64 only (numpy ``eigh``); no GPU. The fp64 ``eps_N``
+    underflows almost immediately, so beyond the smallest cutoffs this ``xi`` is
+    roundoff — the whole point of #65/#82.
+    """
+    from . import ccm_gpu
+
+    A = ccm_gpu.assemble_weil_matrix_fp64(N, float(lam))
+    w, V = np.linalg.eigh(A)
+    i = int(np.argmin(np.abs(w)))
+    v = V[:, i]
+    even = np.array([(v[N + n] + v[N - n]) / 2.0 for n in range(-N, N + 1)])
+    return even / np.linalg.norm(even), float(w[i])
+
+
+def _pole_gap(root, L) -> int:
+    """Index ``n`` of the pole gap ``(d_n, d_{n+1})`` a positive ``root`` sits in.
+
+    ``d_n = 2 pi n / L``; the gap index is ``floor(root * L / (2 pi))``. Tagging
+    every root by its gap is the robust alignment diagnostic for #82: near the
+    resolution edge the fp64 and mpmath roots land in the **same** gap (both pinned
+    to the bulk pole ``d_n``), the structural sign that the edge is robust to the
+    ``xi``-corruption that scrambles the low band.
+    """
+    return int(mp.floor(mp.mpf(root) * mp.mpf(L) / (2 * mp.pi)))
+
+
 @dataclass
 class Fp64Corruption:
     """How far a fp64 spectrum sits from the true (mpmath) one at one cell."""
@@ -245,8 +278,6 @@ def fp64_spectrum_corruption(
     which is super-exponentially smaller for the low zeros). So a fp64 inverse-log
     "measurement" is largely measuring the precision wall.
     """
-    from . import ccm_gpu
-
     lam = mp.mpf(lam)
     if dps is None:
         dps = suggest_dps(lam**2)
@@ -258,12 +289,7 @@ def fp64_spectrum_corruption(
         zeros = ccm.reference_ordinates(count)
 
     # fp64 xi -> secular roots (root-find kept in mpmath so only xi differs).
-    A = ccm_gpu.assemble_weil_matrix_fp64(N, float(lam))
-    w, V = np.linalg.eigh(A)
-    i = int(np.argmin(np.abs(w)))
-    v = V[:, i]
-    even = np.array([(v[N + n] + v[N - n]) / 2.0 for n in range(-N, N + 1)])
-    even = even / np.linalg.norm(even)
+    even, eps_fp64 = _fp64_even_eigenvector(N, lam)
     with mp.workdps(50):
         fp64_roots = ccm.operator_eigenvalues(
             [mp.mpf(float(c)) for c in even], N, L, count
@@ -281,11 +307,155 @@ def fp64_spectrum_corruption(
     return Fp64Corruption(
         N=N,
         cutoff=lam**2,
-        eps_fp64=float(w[i]),
+        eps_fp64=eps_fp64,
         max_vs_mpmath=float(np.abs(fp64_f - mp_f).max()) if m else float("inf"),
         max_vs_zeros_fp64=float(np.abs(fp64_f - zeros_f).max()) if m else float("inf"),
         max_vs_zeros_mpmath=float(genuine),
     )
+
+
+# ----------------------------------------------------------------------------
+# Edge robustness: where does fp64 xi-corruption actually land? (#82)
+# ----------------------------------------------------------------------------
+
+
+@dataclass
+class EdgeCorruption:
+    """Per-index fp64-vs-mpmath spectrum comparison: low band vs resolution edge.
+
+    The #82 spike. :func:`fp64_spectrum_corruption` reports only the *max* over a
+    low set; this resolves the question that gates any Sliwinski outreach — is the
+    fp64 corruption confined to the **low / near-null** eigenvalues, or does it also
+    hit the **edge** eigenvalues that dominate Sliwinski's uniform error
+    ``E = max_k |nu_k - zeta_k|`` (Conjecture 4.1)?
+
+    Three per-index arrays (length :attr:`count`, 0-based ``k``), as floats (the
+    genuine values reach ``~1e-55`` — far below float's relative precision, but the
+    *magnitude* survives, which is all a low-vs-edge comparison needs; the deep
+    digits only matter for the super-exponential acceleration study, not here):
+
+    - :attr:`genuine` ``= |nu_k^{mpmath} - zeta_k|`` — the true finite-cutoff error;
+    - :attr:`fp64_error` ``= |nu_k^{fp64} - zeta_k|`` — what a fp64 run reports;
+    - :attr:`corruption` ``= |nu_k^{fp64} - nu_k^{mpmath}|`` — pure ``xi``-corruption.
+
+    Plus the pole-gap each root sits in (:attr:`gap_mpmath` / :attr:`gap_fp64`):
+    where they agree the fp64 and mpmath roots are pinned to the *same* bulk pole
+    ``d_n = 2 pi n / L`` (the edge-robustness signature). :attr:`k_floor` is the
+    resolution-edge index — the first ``k`` whose genuine error reaches the
+    Heisenberg floor :attr:`bound` ``= 1/(4 ln lambda)``.
+    """
+
+    N: int
+    cutoff: mp.mpf
+    dps: int
+    count: int
+    genuine: list  # |nu_k^{mpmath} - zeta_k|
+    fp64_error: list  # |nu_k^{fp64} - zeta_k|
+    corruption: list  # |nu_k^{fp64} - nu_k^{mpmath}|
+    gap_mpmath: list  # pole gap of each mpmath root
+    gap_fp64: list  # pole gap of each fp64 root
+    bound: float  # 1/(4 ln lambda)
+    k_floor: int | None  # first k whose genuine error reaches the floor
+
+
+def edge_corruption_profile(
+    N: int, lam, *, count: int | None = None, dps: int | None = None
+) -> EdgeCorruption:
+    """Per-index genuine error / fp64 error / ``xi``-corruption across the spectrum.
+
+    Computes the genuine (mpmath) spectrum and the fp64-``xi`` spectrum through the
+    *same* secular root-finder (so only ``xi`` differs), compares both to the zeros
+    index-by-index, and tags every root by its pole gap. ``count`` defaults to ``N``
+    (the full first-``N`` set Thm 3.1 / Conj 4.1 are stated over). Forward: the
+    spectra are the prime-built operator's; the zeros only score them, after the
+    fact (see the module docstring).
+
+    The #82 finding (read off the bands via :func:`summarize_edge_bands`): the
+    corruption is **largest in the low / near-null band and decays toward the edge**,
+    where the eigenvalues are pinned to the bulk poles ``d_n`` and are robust to the
+    ``xi``-corruption. So a fp64 *uniform-error* measurement is edge-dominated and
+    plausibly genuine once the genuine edge error (growing ``~ zeta_N``) overtakes
+    the bounded low-band corruption.
+    """
+    lam = mp.mpf(lam)
+    if count is None:
+        count = N
+    if dps is None:
+        dps = suggest_dps(lam**2)
+    L = 2 * mp.log(lam)
+
+    mp_spec = ccm.operator_spectrum(N, lam, count=count, dps=dps)
+    even, _eps_fp64 = _fp64_even_eigenvector(N, lam)
+    with mp.workdps(50):
+        fp64_roots = ccm.operator_eigenvalues(
+            [mp.mpf(float(c)) for c in even], N, L, count
+        )
+    with mp.workdps(dps):
+        zeros = ccm.reference_ordinates(count)
+        m = min(len(mp_spec), len(fp64_roots), len(zeros))
+        # Genuine error in mpmath (it is ~1e-55, below float's relative precision at
+        # the O(100) eigenvalue magnitude); cast to float only for storage.
+        genuine = [float(abs(mp_spec[k] - zeros[k])) for k in range(m)]
+        fp64_error = [float(abs(fp64_roots[k] - zeros[k])) for k in range(m)]
+        corruption = [float(abs(fp64_roots[k] - mp_spec[k])) for k in range(m)]
+        gap_mpmath = [_pole_gap(mp_spec[k], L) for k in range(m)]
+        gap_fp64 = [_pole_gap(fp64_roots[k], L) for k in range(m)]
+        bound = float(heisenberg_bound(lam))
+    k_floor = next((k for k in range(m) if genuine[k] >= bound), None)
+    return EdgeCorruption(
+        N=N,
+        cutoff=lam**2,
+        dps=dps,
+        count=m,
+        genuine=genuine,
+        fp64_error=fp64_error,
+        corruption=corruption,
+        gap_mpmath=gap_mpmath,
+        gap_fp64=gap_fp64,
+        bound=bound,
+        k_floor=k_floor,
+    )
+
+
+def summarize_edge_bands(prof: EdgeCorruption, *, k_split: int | None = None) -> dict:
+    """Split an :class:`EdgeCorruption` into low (``k < k_split``) vs edge bands.
+
+    ``k_split`` defaults to ``prof.k_floor`` (the resolution edge — where the genuine
+    error reaches the Heisenberg floor). Returns, per band, the max corruption /
+    genuine / fp64 error, plus the global maxima with their argmax index. The #82
+    crossover readout: ``e_argmax_band`` is ``"low"`` while the bounded low-band
+    corruption sets fp64's uniform error ``E`` (small ``N``), and ``"edge"`` once the
+    genuine resolution edge overtakes it (large ``N``, Sliwinski's regime) — at which
+    point the fp64 ``E`` measurement is edge-dominated and plausibly genuine.
+    """
+    n = prof.count
+    if k_split is None:
+        k_split = prof.k_floor if prof.k_floor is not None else n // 2
+    k_split = max(1, min(k_split, n))
+    cor = np.array(prof.corruption)
+    gen = np.array(prof.genuine)
+    fpe = np.array(prof.fp64_error)
+
+    def band(sl):
+        return {
+            "max_corruption": float(cor[sl].max()) if cor[sl].size else 0.0,
+            "max_genuine": float(gen[sl].max()) if gen[sl].size else 0.0,
+            "max_fp64_error": float(fpe[sl].max()) if fpe[sl].size else 0.0,
+        }
+
+    e_arg = int(fpe.argmax())
+    return {
+        "k_split": k_split,
+        "count": n,
+        "low": band(slice(0, k_split)),
+        "edge": band(slice(k_split, n)),
+        "E_fp64": float(fpe.max()),  # what a fp64 run would report
+        "E_genuine": float(gen.max()),  # the true uniform error
+        "E_argmax": e_arg,
+        "E_argmax_band": "low" if e_arg < k_split else "edge",
+        "max_corruption": float(cor.max()),
+        "max_corruption_index": int(cor.argmax()),
+    }
 
 
 # ----------------------------------------------------------------------------

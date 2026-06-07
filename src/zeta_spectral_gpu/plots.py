@@ -1253,3 +1253,69 @@ def li_coefficients_figure(result, *, out_path: Path | str) -> Path:
     fig.savefig(out, dpi=150)
     plt.close(fig)
     return out
+
+
+def li_family_figure(result, *, out_path: Path | str) -> Path:
+    """Forward GRH Li margins over a Dirichlet family (issue #71).
+
+    ``result`` is a ``li_criterion_family.FamilyLiResult``. Each family member is one
+    point: its GRH margin ``min_n Re lambda_n(chi)`` -- the closest any computed Li
+    coefficient comes to the ``Re lambda_n = 0`` boundary GRH forbids it to cross.
+    Real (quadratic) and complex characters are drawn separately (the symmetry-type
+    contrast). Every point sitting above the dashed baseline is the forward,
+    family-wide GRH-consistency verdict; a point dipping below would refute GRH for
+    that character.
+    """
+    members = result.members
+    x = np.arange(len(members))
+    min_re = np.array([float(m.min_re) for m in members])
+    is_real = np.array([m.is_real for m in members])
+
+    fig, ax = plt.subplots(figsize=(8.0, 4.5))
+    ax.scatter(
+        x[is_real],
+        min_re[is_real],
+        s=26,
+        color="#5b9bd5",
+        edgecolor="#2f6aa8",
+        label=r"real (quadratic) $\chi$",
+        zorder=3,
+    )
+    if (~is_real).any():
+        ax.scatter(
+            x[~is_real],
+            min_re[~is_real],
+            s=30,
+            color="#c0392b",
+            marker="^",
+            edgecolor="#7d1f14",
+            label=r"complex $\chi$",
+            zorder=3,
+        )
+    ax.axhline(
+        0.0,
+        color="#c0392b",
+        lw=1.2,
+        ls="--",
+        label=r"GRH boundary ($\mathrm{Re}\,\lambda_n = 0$)",
+    )
+    # Linear scale with the 0 boundary in view: it shows how close the tightest
+    # margin comes to the line GRH forbids any coefficient to cross.
+    hi = float(np.max(min_re)) if min_re.size else 1.0
+    ax.set_ylim(bottom=min(0.0, float(np.min(min_re))) - 0.05 * hi, top=1.1 * hi)
+    worst = result.worst_member
+    ax.set_xlabel("family member (enumeration order)")
+    ax.set_ylabel(r"GRH margin  $\min_n \mathrm{Re}\,\lambda_n(\chi)$")
+    ax.set_title(
+        f"Forward GRH Li criterion over the {result.kind} family "
+        f"({result.n_members} characters, $n\\leq{result.n_max}$)\n"
+        f"tightest margin {float(worst.min_re):.3g} at {worst.label}"
+    )
+    ax.legend(loc="best", fontsize=9)
+    fig.tight_layout()
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out

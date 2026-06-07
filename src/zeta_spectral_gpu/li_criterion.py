@@ -117,26 +117,38 @@ def log_xi_coefficients(n_max: int, *, dps: int | None = None) -> list:
         return a
 
 
+def li_from_log_coefficients(a: list, n_max: int) -> list:
+    """Li coefficients from the ``log``-completed-function Taylor coefficients ``a_k``.
+
+    The finite, zero-free Bombieri-Lagarias combination
+
+        lambda_n = n * sum_{j=0}^{n-1} C(n-1, j) a_{n-j}
+
+    (the ``s^(n-1) log F`` derivative expanded around ``s = 1``), shared by the
+    single-``zeta`` sweep (``a = log xi`` coefficients) and the Phase-2 family sweep
+    (``a = log Lambda(., chi)`` coefficients, :mod:`li_criterion_family`). Works for
+    real or complex ``a_k``; the caller sets the working precision.
+    """
+    out = []
+    for n in range(1, n_max + 1):
+        s = mp.fsum(mp.binomial(n - 1, j) * a[n - j] for j in range(n))
+        out.append(n * s)
+    return out
+
+
 def li_coefficients(n_max: int, *, dps: int | None = None) -> list:
     """The Li coefficients ``lambda_1 .. lambda_{n_max}`` (forward, no zeros).
 
     From the ``log xi`` Taylor coefficients via the finite, zero-free combination
-
-        lambda_n = n * sum_{j=0}^{n-1} C(n-1, j) a_{n-j}
-
-    (the ``s^(n-1) log xi`` derivative, expanded around ``s = 1``). RH is
-    equivalent to ``lambda_n >= 0`` for every ``n``; these values are produced to
-    be *compared* against that prediction, never fitted.
+    :func:`li_from_log_coefficients`. RH is equivalent to ``lambda_n >= 0`` for
+    every ``n``; these values are produced to be *compared* against that
+    prediction, never fitted.
     """
     if dps is None:
         dps = default_dps(n_max)
     a = log_xi_coefficients(n_max, dps=dps)
     with mp.workdps(dps):
-        out = []
-        for n in range(1, n_max + 1):
-            s = mp.fsum(mp.binomial(n - 1, j) * a[n - j] for j in range(n))
-            out.append(n * s)
-        return out
+        return li_from_log_coefficients(a, n_max)
 
 
 def li_main_term(n, *, dps: int | None = None) -> mp.mpf:

@@ -28,6 +28,16 @@ top-level `CLAUDE.md`; per-session narrative lives in git history.
   oracle (#16): the documented `c=13` `λ_min` cell, frozen as a checked-in
   fixture for the CPU reference (#8) and GPU assembly (#9) to diff against, plus
   the `λ_min` vs zero-error distinction and the ~1.2–1.3 normalization factor.
+- [`ccm-reproduction-notes.md`](ccm-reproduction-notes.md) — a self-contained,
+  public-facing field guide (#56) for anyone reproducing the CCM / Connes–van
+  Suijlekom zeta operator: what we reproduced (the `connes-cvs` `c=13` cell + the
+  §6 table from our own assembly) and the five gotchas a re-implementer hits — the
+  Weil combination **sign** (`W_{0,2} − W_ℝ − Σ_p W_p`, not all-`+`), `λ_min` vs
+  zero-error + the ~1.2–1.3 normalization factor, the end-to-end precision wall
+  (fp64 *corrupts* the spectrum), the factor-once / parity-reduced eigensolve
+  recipe, and the small construction traps. Consolidates the issue-numbered notes
+  below for an outside (Connes/CvS-camp) reader; outreach is gated on maintainer
+  sign-off.
 - [`ccm-universality.md`](ccm-universality.md) — the prime-cutoff rigidity trend
   (#18): the unfolding-free spacing-ratio `r̃` read of the operator spectrum. As
   the cutoff `x` grows the local statistics relax toward GUE and the

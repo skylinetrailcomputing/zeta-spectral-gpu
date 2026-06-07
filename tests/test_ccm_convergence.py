@@ -41,6 +41,42 @@ def test_convergence_errors_resolved_beats_floor():
     assert r.bound_ratio < 1
 
 
+def test_tracking_length_counts_leading_tracked_block():
+    # Four levels tracked to <1e-3 rel, then a sharp detach. k* is the contiguous
+    # leading block length, and it is monotone non-decreasing in rel_tol.
+    zeros = [14.0, 21.0, 25.0, 30.0, 32.0, 37.0]
+    errors = [1e-50, 1e-30, 1e-10, 3e-4, 0.5, 5.0]  # rel at idx3 = 1e-5, idx4 ~ 1.6e-2
+    assert cc.tracking_length(errors, zeros, rel_tol=1e-3) == 4
+    assert cc.tracking_length(errors, zeros, rel_tol=1e-6) == 3  # idx3 (1e-5) drops
+    # A lone spike *past* the break does not extend the block (contiguous, not "most").
+    assert (
+        cc.tracking_length([1e-50, 9.9, 1e-50], [14.0, 21.0, 25.0], rel_tol=1e-3) == 1
+    )
+
+
+def test_tracking_length_zero_when_first_detaches():
+    # An under-resolved xi: even nu_1 is off -> k* = 0, never reported as signal.
+    assert cc.tracking_length([1.0, 1e-50], [14.0, 21.0], rel_tol=1e-3) == 0
+
+
+def test_tracking_height_picks_edge_ordinate():
+    zeros = [14.0, 21.0, 25.0, 30.0]
+    assert cc.tracking_height(zeros, 3) == 25.0
+    assert cc.tracking_height(zeros, 0) is None
+
+
+def test_tracking_length_resolved_cell_monotone_and_method_agrees():
+    # On a genuinely resolved cell the tracked block is non-trivial, bounded by the
+    # compared count, and looser tol tracks at least as far as tighter tol. The
+    # dataclass method must agree with the free function (mpf inputs exercised here).
+    r = cc.convergence_errors(40, mp.sqrt(13), count=40, dps=110)
+    assert r.resolved
+    k_loose = cc.tracking_length(r.errors, r.zeros, rel_tol=1e-2)
+    k_tight = cc.tracking_length(r.errors, r.zeros, rel_tol=1e-8)
+    assert 0 < k_tight <= k_loose <= r.count
+    assert r.tracking_length(rel_tol=1e-2) == k_loose
+
+
 def test_resolution_gate_flags_underresolved():
     # Far too few digits to resolve xi (eps_N ~ 1e-59 >> 1e-25): the recovered
     # spectrum is garbage and the gate must catch it.
@@ -88,6 +124,22 @@ def test_edge_figure_renders(tmp_path):
         "k_cross": 5,
     }
     out = plots.ccm_convergence_edge_figure(study, out_path=tmp_path / "edge.png")
+    assert out.exists() and out.stat().st_size > 0
+
+
+def test_tracking_range_figure_renders(tmp_path):
+    study = {
+        "N": 160,
+        "rel_tol": 1e-3,
+        "c_hat": 11.75,
+        "rows": [
+            {"x": 6, "k_star": 14, "ratio": 10.1, "capped": False, "k_pred": 13},
+            {"x": 12, "k_star": 48, "ratio": 11.6, "capped": False, "k_pred": 47},
+            {"x": 22, "k_star": 117, "ratio": 12.1, "capped": False, "k_pred": 115},
+            {"x": 30, "k_star": 160, "ratio": 8.0, "capped": True, "k_pred": 200},
+        ],
+    }
+    out = plots.ccm_tracking_range_figure(study, out_path=tmp_path / "track.png")
     assert out.exists() and out.stat().st_size > 0
 
 

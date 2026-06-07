@@ -1,4 +1,4 @@
-# ccm-universality.md — the prime-cutoff rigidity trend (#18, building on #9/#35)
+# ccm-universality.md — the prime-cutoff rigidity trend (#18/#53, building on #9/#35)
 
 *Why* the finite-cutoff CCM operator's local statistics look the way they do as
 the prime cutoff grows, and which readout to trust. The operator and its
@@ -44,7 +44,59 @@ Two monotone movements **toward GUE as the prime cutoff x grows**:
    spectrum is GUE-like. By `x = 24` the whole `N = 160` spectrum is GUE-like
    (full ⟨r̃⟩ = 0.625 ≈ low). This is the #9 forward prediction stated cleanly:
    more primes ⇒ the operator's local statistics approach the zeros' GUE statistics
-   out to higher energy.
+   out to higher energy. **`k*(x)` is now measured — see the next section (#53).**
+
+## The tracking-range law `k*(x)` — measured (#53)
+
+Movement 2 is now quantitative. Define the **zero-tracking range** `k*(x)` as the
+length of the leading block of eigenvalues that reproduce the ordinates to a fixed
+relative tolerance — `|ν_k − ζ_k| / ζ_k < 10⁻³` for every `k ≤ k*` — and the
+**tracking height** `t*(x) = ζ_{k*}`, the energy up to which the operator tracks
+(`ccm_convergence.tracking_length`; forward — the zeros only *score* the
+prime-built spectrum). Swept at `N = 160` (one cached spectrum per `x` gives all
+three readouts, so the axes align):
+
+| x = λ² | 6 | 8 | 10 | 12 | 14 | 16 | 18 | 20 | 22 |
+|---|---|---|---|---|---|---|---|---|---|
+| `k*(x)` | 14 | 26 | 38 | 48 | 62 | 75 | 90 | 106 | 117 |
+| `t* = ζ_{k*}` | 60.8 | 92.5 | 118.8 | 139.7 | 167.2 | 192.0 | 219.1 | 247.1 | 265.6 |
+| `t*/x` | 10.1 | 11.6 | 11.9 | 11.6 | 11.9 | 12.0 | 12.2 | 12.4 | 12.1 |
+| ⟨r̃⟩ full | 0.817 | 0.798 | 0.758 | 0.741 | 0.713 | 0.692 | 0.681 | 0.656 | 0.646 |
+| ⟨r̃⟩ low 40 | 0.705 | 0.672 | 0.628 | 0.624 | 0.624 | 0.624 | 0.624 | 0.624 | 0.624 |
+| Δ₃→GUE dist | 0.045 | 0.046 | 0.044 | 0.042 | 0.039 | 0.036 | 0.035 | 0.032 | 0.031 |
+
+**The law: the tracking *height* is linear in the prime cutoff,** `t*(x) ≈ 12 x`.
+The ratio `t*/x` sits in a tight band (mean ≈ 11.75, between `2π ≈ 6.28` and
+`2πe ≈ 17.08`; the mild upward drift is a sub-leading correction and integer-`k*`
+granularity). Equivalently `k*(x)` grows ~linearly, ≈ 6–7 newly-tracked zeros per
+unit `x`. The origin is a **pole/zero density balance**: the secular poles
+`d_n = 2πn/L` are uniform with spacing `2π/L = 2π/ln x`, while the zero spacing
+`2π/ln(t/2π)` shrinks with height — the operator can resolve a zero only while the
+poles stay denser, i.e. while `ln(t/2π) ≲ ln x`, a height `t ∝ x`. (The measured
+`12` exceeds the bare crossover `2π` because "tracked to `10⁻³`" sits a little above
+the exact density crossover; the *linearity* is the law, the constant is empirical.)
+
+**The r̃ bridge — why this is the mechanism behind movements 1 & 2.** Read the
+table down. As `x` grows, `k*(x)` climbs while the low-40 window has long since
+saturated at ⟨r̃⟩ = 0.624 (movement 1 — by `x = 12` the low 40 *are* the first 40
+zeros). The full-spectrum ⟨r̃⟩ then descends monotonically toward that same value
+(0.817 → 0.646) **because** a growing fraction `k*(x)/N` of the levels are the
+GUE-distributed zeros and not the pole-locked tail. At the looser "statistically
+GUE" tolerance `10⁻¹`, `k*(x)` reaches ≈ `N` already by `x ≈ 16–18` — exactly where
+full ⟨r̃⟩ closes on low ⟨r̃⟩. So the #18 r̃ descent and the `k*(x)` law are one
+phenomenon. The lever is `x`, not `N`: enlarging `N` at fixed `x` leaves `k*(x)`
+put and only lengthens the pole-locked tail (the push-`N` control below).
+
+**Δ₃ ordering, quantified (#53 item 1).** The cross-`x` Δ₃(L) ordering the #9 read
+saw by eye is now a number — the mean `|Δ₃_emp − Δ₃_GUE|` over the `L`-grid
+(`spacing.delta3_gue_distance`) falls **33%** across the sweep (0.046 → 0.031),
+monotone for `x ≥ 8` (the `x = 6` cutoff — only the primes {2,3,4,5} — is too coarse
+to place). `Σ²` stays washed out under the polynomial unfold (the #20 caveat), so
+the Δ₃-distance and the unfolding-free r̃ remain the trustworthy readouts; the
+*absolute* Δ₃ level is still finite-`N`-suppressed.
+
+The figure is `data/ccm_tracking_range.png` (`k*(x)` with the linear-law overlay;
+the `t*/x` plateau).
 
 ## Two cautions baked into the design
 
@@ -70,3 +122,13 @@ Two monotone movements **toward GUE as the prime cutoff x grows**:
 Writes `data/ccm_rtilde_vs_cutoff.png` (⟨r̃⟩ vs `x`, plus the push-`N` control) and
 the existing `Σ²`/`Δ₃` rigidity + spacing figures. CPU/mpmath for the spectra; the
 statistics are fp64 (GPU path falls back to numpy when CuPy is absent).
+
+The `k*(x)` tracking-range law, the r̃ bridge, and the Δ₃-to-GUE ordering (#53):
+
+    uv run python scripts/run_ccm_convergence.py --mode tracking \
+        --tracking-x 6 8 10 12 14 16 18 20 22 --tracking-N 160
+
+Writes `data/ccm_tracking_range.png` and prints the aligned table above. Spectra are
+cached full-precision under `data/`, so the first run is the cost (~4 min here) and
+reruns/replots are instant. Keep the largest `x` interior (`k* < N`); past that
+`t*` is pinned at `ζ_N` and understates the height (shown hollow in the figure).

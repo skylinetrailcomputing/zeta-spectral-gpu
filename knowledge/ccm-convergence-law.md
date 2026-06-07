@@ -94,6 +94,12 @@ profile. At `N = 120, x = 13, dps = 88` (tracking 116 zeros):
 - the Heisenberg floor `1/(4 ln λ) = 0.195`; the per-index error first **reaches the
   floor at `k = 54`** — the resolution edge — then blows up.
 
+This single-`x` edge index is generalised across the cutoff in #53: the
+zero-tracking range `k*(x) = #{k : |ν_k − ζ_k| / ζ_k < 10⁻³}` grows **linearly** in
+the prime cutoff (`t* = ζ_{k*} ≈ 12x`), and at `x = 13` it lands at `k* = 53` —
+the same detachment this floor crossing marks. See
+[`ccm-universality.md`](ccm-universality.md).
+
 So the floor is an **edge phenomenon**: the tracked low zeros sit far below it
 (super-exp), and the mean is pushed above it only by the unresolvable top. (We do
 not chase the exact full-`N` edge roots: near the edge the secular roots cluster

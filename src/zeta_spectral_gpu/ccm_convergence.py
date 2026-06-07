@@ -108,6 +108,11 @@ class ConvergenceErrors:
         """
         return self.mae / self.bound
 
+    def tracking_length(self, *, rel_tol: float = 1e-3) -> int:
+        """The forward zero-tracking range ``k*`` of this cell (see
+        :func:`tracking_length`)."""
+        return tracking_length(self.errors, self.zeros, rel_tol=rel_tol)
+
 
 def convergence_errors(
     N: int,
@@ -156,6 +161,58 @@ def convergence_errors(
         eigenvalues=list(res.eigenvalues),
         zeros=list(res.zeros),
     )
+
+
+# ----------------------------------------------------------------------------
+# The zero-tracking range k*(x) — the universality bridge (#53)
+# ----------------------------------------------------------------------------
+
+
+def tracking_length(errors, zeros, *, rel_tol: float = 1e-3) -> int:
+    """Forward zero-tracking range ``k*``: the leading block the operator tracks.
+
+    ``errors[k] = |nu_k - zeta_k|`` and ``zeros[k] = zeta_k`` (0-based), as produced
+    by :func:`convergence_errors` / :class:`ccm.CCMResult`. The CCM operator
+    reproduces the low ordinates super-exponentially well, then detaches sharply at
+    the resolution edge where the zero density outruns the pole spacing ``2 pi / L``
+    (#65). ``k*`` is the largest ``k`` such that *every* index ``j < k`` matches its
+    zero to relative tolerance — ``|nu_j - zeta_j| / zeta_j < rel_tol`` — i.e. the
+    length of the leading contiguous tracked block (robust to a lone spike past the
+    break, unlike the first-crossing index). Monotone non-decreasing in ``rel_tol``.
+    Returns ``0`` when even ``nu_1`` is off (an under-resolved ``xi``).
+
+    Where #65's ``edge`` ``k_cross`` marks where the error first reaches the *fixed*
+    Heisenberg floor ``1/(4 ln lambda)`` at one cutoff, ``k*`` is read at a chosen
+    relative tolerance and is meant to be **swept over the cutoff ``x``**: it is the
+    quantity behind the #18 observation that the GUE-tracking range extends with the
+    prime cutoff (``knowledge/ccm-universality.md``).
+
+    Forward: the zeros enter only to score an already-computed, prime-built spectrum
+    — never as input. See the module docstring / ``project-framing.md``.
+    """
+    n = min(len(errors), len(zeros))
+    k = 0
+    for j in range(n):
+        z = abs(zeros[j])
+        if z == 0 or abs(errors[j]) / z >= rel_tol:
+            break
+        k += 1
+    return k
+
+
+def tracking_height(zeros, k_star: int):
+    """The ordinate ``zeta_{k*}`` at the tracking edge (``None`` if ``k* == 0``).
+
+    The companion to :func:`tracking_length`: where ``k*`` counts tracked levels,
+    ``t*(x) = zeta_{k*}`` is the *energy* up to which the operator tracks. The
+    forward density-balance prediction is that ``t*(x)`` grows **linearly** in the
+    prime cutoff ``x`` (poles ``d_n = 2 pi n / L`` of spacing ``2 pi / ln x``
+    outnumber the zeros while ``ln(t / 2 pi e) < ln x``, i.e. ``t < 2 pi e x``), so
+    ``t*(x) / x`` should plateau near ``2 pi e``. Tested against the measured sweep.
+    """
+    if k_star <= 0:
+        return None
+    return zeros[k_star - 1]
 
 
 # ----------------------------------------------------------------------------

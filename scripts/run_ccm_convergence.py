@@ -36,7 +36,13 @@ from pathlib import Path
 import mpmath as mp
 import numpy as np
 
-from zeta_spectral_gpu import ccm, ccm_convergence as cc, plots
+from zeta_spectral_gpu import (
+    ccm,
+    ccm_convergence as cc,
+    debruijn_newman,
+    plots,
+    spacing,
+)
 
 DATA = Path(__file__).resolve().parent.parent / "data"
 
@@ -156,6 +162,129 @@ def study_edge(x: int, *, N: int, dps: int | None) -> dict:
 
 
 # ----------------------------------------------------------------------------
+# tracking: the zero-tracking range k*(x) vs the prime cutoff (#53)
+# ----------------------------------------------------------------------------
+
+
+def study_tracking(
+    xs: list[int],
+    *,
+    N: int,
+    rel_tol: float = 1e-3,
+    low_count: int = 40,
+    refresh: bool = False,
+) -> dict:
+    """``k*(x)``: how far up the spectrum the operator tracks the zeros, vs cutoff.
+
+    For each cutoff ``x`` take the cached high-precision spectrum and measure, from
+    that *one* spectrum, the three universality readouts together (so they share an
+    aligned ``x`` axis — the #53 bridge):
+
+    - the **zero-tracking range** ``k*`` — the leading block tracked to ``rel_tol``
+      (:func:`cc.tracking_length`) — plus a loose (``1e-1``) and tight (``1e-6``)
+      read, the edge ordinate ``t* = zeta_{k*}``, and the ratio ``t*/x``;
+    - the **spacing-ratio rigidity** ``<r~>`` (Atas; unfolding-free) over the full
+      spectrum and the low ``low_count`` window — the #18 readout, recomputed here;
+    - the **``Delta_3``-to-GUE distance** (:func:`spacing.delta3_gue_distance`) — the
+      quantitative form of the cross-cutoff ``Delta_3`` ordering (#53 item 1).
+
+    The density-balance heuristic predicts ``t*`` grows ~linearly in ``x``; the
+    constant is read off the measured plateau, not assumed. ``k_pred`` counts zeros
+    below the measured mean ``t*/x`` times ``x`` — a self-consistent linear overlay.
+
+    Forward: the operator is prime-built; the zeros only score it (#53).
+    """
+    print(
+        f"\n[tracking] zero-tracking range k*(x) vs cutoff (N={N}, rel_tol={rel_tol})"
+    )
+    print(
+        f"{'x':>4} {'dps':>5} {'k*(1e-1)':>9} {'k*':>5} {'k*(1e-6)':>9} "
+        f"{'t*':>8} {'t*/x':>7} {'<r~>full':>9} {'<r~>low':>8} {'D3-GUE':>7} {'cap?':>5}"
+    )
+    lengths = np.geomspace(0.5, 30.0, 24)
+    rows = []
+    for x in xs:
+        dps = cc.suggest_dps(x)
+        spec = spectrum_mpf(N, x, dps, refresh=refresh)
+        zr = zeros_mpf(len(spec), dps)
+        with mp.workdps(dps):
+            errs = [abs(spec[k] - zr[k]) for k in range(len(spec))]
+        k_loose = cc.tracking_length(errs, zr, rel_tol=1e-1)
+        k_star = cc.tracking_length(errs, zr, rel_tol=rel_tol)
+        k_tight = cc.tracking_length(errs, zr, rel_tol=1e-6)
+        t_star = cc.tracking_height(zr, k_star)
+        capped = k_star >= len(spec)
+        ratio = float(t_star) / x if t_star is not None else None
+
+        # The bulk universality readouts, from the same spectrum (float64 is ample
+        # for statistics; the deep digits only matter for k*'s low-zero errors).
+        spec_f = np.sort(np.array([float(s) for s in spec], dtype=np.float64))
+        nlo = min(spec_f.size, low_count)
+        rtilde_full = float(np.nanmean(spacing.spacing_ratios(spec_f)))
+        rtilde_low = float(np.nanmean(spacing.spacing_ratios(spec_f[:nlo])))
+        unfolded = debruijn_newman.empirical_unfold(spec_f, degree=6)
+        delta3 = spacing.dyson_mehta_delta3(unfolded, lengths)
+        d3_dist = spacing.delta3_gue_distance(lengths, delta3)
+
+        rows.append(
+            {
+                "x": x,
+                "N": N,
+                "dps": dps,
+                "n_levels": len(spec),
+                "k_loose": k_loose,
+                "k_star": k_star,
+                "k_tight": k_tight,
+                "t_star": float(t_star) if t_star is not None else None,
+                "ratio": ratio,
+                "rtilde_full": rtilde_full,
+                "rtilde_low": rtilde_low,
+                "delta3_gue_dist": d3_dist,
+                "capped": capped,
+            }
+        )
+        print(
+            f"{x:>4} {dps:>5} {k_loose:>9} {k_star:>5} {k_tight:>9} "
+            f"{(float(t_star) if t_star else 0):>8.2f} {(ratio if ratio else 0):>7.2f} "
+            f"{rtilde_full:>9.4f} {rtilde_low:>8.4f} {d3_dist:>7.4f} "
+            f"{('yes' if capped else ''):>5}"
+        )
+
+    # The linear-law constant from the interior (non-capped) points, and a
+    # self-consistent predicted k*(x) = #{zeros < c_hat * x} using that constant.
+    interior = [r for r in rows if not r["capped"] and r["k_star"] > 0]
+    c_hat = float(np.mean([r["ratio"] for r in interior])) if interior else float("nan")
+    zr_long = zeros_mpf(max(r["n_levels"] for r in rows), cc.suggest_dps(max(xs)))
+    zr_f = np.array([float(z) for z in zr_long])
+    for r in rows:
+        r["k_pred"] = int(np.count_nonzero(zr_f < c_hat * r["x"])) if interior else None
+    print(
+        f"  interior mean t*/x = {c_hat:.3f}  "
+        f"(2*pi = {2 * np.pi:.3f}, 2*pi*e = {2 * np.pi * np.e:.3f}); "
+        f"linear-law constant c_hat used for the predicted overlay"
+    )
+    # The Delta_3-to-GUE ordering (#53 item 1): report the overall fall and any
+    # up-ticks rather than a bare boolean — the smallest cutoff (few primes) can
+    # buck the trend without breaking it.
+    dists = [r["delta3_gue_dist"] for r in rows]
+    ordered = all(b <= a + 1e-9 for a, b in zip(dists, dists[1:]))
+    drop = (dists[0] - dists[-1]) / dists[0] if dists and dists[0] else 0.0
+    n_up = sum(1 for a, b in zip(dists, dists[1:]) if b > a + 1e-9)
+    print(
+        f"  Delta_3-to-GUE distance falls {drop:.0%} over the sweep "
+        f"({n_up} up-tick(s)): {[round(d, 4) for d in dists]}"
+    )
+    return {
+        "rows": rows,
+        "N": N,
+        "rel_tol": rel_tol,
+        "c_hat": c_hat,
+        "low_count": low_count,
+        "delta3_monotone": ordered,
+    }
+
+
+# ----------------------------------------------------------------------------
 # accelerate: extrapolate a moderate zero's cutoff-sequence
 # ----------------------------------------------------------------------------
 
@@ -208,10 +337,29 @@ def main() -> None:
     )
     ap.add_argument(
         "--mode",
-        choices=["artifact", "edge", "accelerate", "all"],
+        choices=["artifact", "edge", "accelerate", "tracking", "all"],
         default="all",
     )
     ap.add_argument("--N", type=int, default=80)
+    ap.add_argument(
+        "--tracking-x",
+        type=int,
+        nargs="+",
+        default=[6, 8, 10, 12, 14, 16, 18],
+        help="prime cutoffs for the k*(x) tracking sweep",
+    )
+    ap.add_argument(
+        "--tracking-N",
+        type=int,
+        default=160,
+        help="truncation N for the tracking sweep (must exceed the largest k*)",
+    )
+    ap.add_argument(
+        "--rel-tol",
+        type=float,
+        default=1e-3,
+        help="relative tolerance defining the tracked block for k*(x)",
+    )
     ap.add_argument("--refresh", action="store_true")
     ap.add_argument("--out-dir", type=Path, default=DATA)
     args = ap.parse_args()
@@ -232,6 +380,17 @@ def main() -> None:
         print(f"  figure -> {out}")
     if args.mode in ("accelerate", "all"):
         study_accelerate([11, 12, 13, 14], N=args.N, indices=[10, 20, 30, 40])
+    if args.mode in ("tracking", "all"):
+        t = study_tracking(
+            args.tracking_x,
+            N=args.tracking_N,
+            rel_tol=args.rel_tol,
+            refresh=args.refresh,
+        )
+        out = plots.ccm_tracking_range_figure(
+            t, out_path=args.out_dir / "ccm_tracking_range.png"
+        )
+        print(f"  figure -> {out}")
 
     print(f"\n[done] {time.perf_counter() - t0:.0f}s")
 

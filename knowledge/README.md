@@ -33,6 +33,14 @@ top-level `CLAUDE.md`; per-session narrative lives in git history.
   the cutoff `x` grows the local statistics relax toward GUE and the
   zero-tracking window converges to the real zeros' `⟨r̃⟩`; why pushing `N` is the
   wrong lever (the pole-locked tail).
+- [`ccm-fill-precision.md`](ccm-fill-precision.md) — the precision anatomy of the
+  flagship Weil-fill and why a **double-double fill is a no** (#54): ~99% of the
+  fp64 matrix error is the special-function coefficients, not the fill arithmetic
+  (Sterbenz makes the near-band divided-difference subtraction exact). A dd fill
+  over fp64 coefficients gains ~0 digits, dd's ~32 digits is below the ~80 needed
+  at `c = 13`, and the fp64 `eigh` consumer can't even use the 15 digits the fill
+  already has. The real lever is the coefficient sweep at qd/bignum *paired with*
+  an extended-precision eigensolve, not the assembly fill.
 - [`riemann-siegel.md`](riemann-siegel.md) — the GPU Riemann–Siegel ζ-evaluator
   (#55): a forward-neutral *tool* computing `ζ(1/2 + i t)` / the Hardy `Z` from the
   Riemann–Siegel expansion in fp64. The `O(√t)` main sum is the embarrassingly-

@@ -147,8 +147,12 @@ Genuinely past the project's training cutoff; surfaced by the literature pass.
   Riemann Zeros*** (Nov 2025).
   [arXiv:2511.18309](https://arxiv.org/abs/2511.18309). A forward chiral adelic
   Dirac operator on the idèle class space; zeros appear as spectral-shift-function
-  discontinuities, with finite-prime truncations computable. Tracked as
-  exploratory candidate **F6**. See
+  discontinuities, with finite-prime truncations computable. Exploratory candidate
+  **F6**: **gate cleared (forward — no ζ/zero data tunes the mass term), closed as
+  won't-build (#66)** — the offered prime-built coefficient families don't
+  reproduce the zeros (random synthetic Hecke data, no convergence), the matching
+  is deferred to an inverse existence conjecture, and the truncated model is a
+  trivial 2×2 fiber with no eigensolve/GPU surface. See
   [`frontier-survey-2026.md`](frontier-survey-2026.md). Issue #66.
 
 ---

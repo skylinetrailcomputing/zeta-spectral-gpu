@@ -54,16 +54,32 @@ cutoff**:
 ## 3. One new adjacent operator family
 
 **Hateley, arXiv:2511.18309** (23 Nov 2025), *A Chiral Adelic Dirac Operator and
-the Spectral Realization of the Riemann Zeros.* **Forward** (pending one check).
-A chiral adelic Dirac operator on the idèle class space with a prime-indexed
-Hecke mass deformation; the zeros appear not as a raw spectrum but as
-**spectral-shift-function discontinuities**, and a separated adelic trace formula
-yields a prime-orbit expansion echoing the explicit formula. Finite-prime
-truncations are computable. The deformation is Hecke/prime-built, so the
-construction reads forward — but per the circularity found in this repo's own
-Dirac-mirror resonance ruling (issue #44), the **watch-item** before any build is
-to confirm from the full text that no ζ/zero data tunes the mass term. Adjacent
-to the [Dirac-mirror track](dirac-mirror.md).
+the Spectral Realization of the Riemann Zeros.* **Gate cleared — forward; closed
+as won't-build (issue #66).** A chiral adelic Dirac operator on the idèle class
+space with a prime-indexed Hecke mass deformation; the zeros appear not as a raw
+spectrum but as **spectral-shift-function discontinuities**, and a separated
+adelic trace formula yields a prime-orbit expansion echoing the explicit formula.
+Finite-prime truncations are computable.
+
+The full-text watch-item — confirm no ζ/zero data tunes the mass term, per the
+#44 circularity precedent — is **discharged**: it does not. The functional
+equation enters structurally as the chiral involution `J_glob` (reflection ∘
+idelic inversion); the offered coefficient families (`η_p=p^{−(1+ε)}λ²`, and the
+formal Euler-factor `−[log(1−p^{−s})]′|_{1/2}`) are prime-built; the only contact
+with the zeros is a global 2-parameter affine rescale at comparison time
+(Berry–Keating-style), not the #44 trap of feeding in `arg ζ`.
+
+It is nonetheless a **no-build**: (i) the forward coefficient families don't
+reproduce the zeros — §5.2's numerics use *random synthetic* Hecke modes and
+report MAE ≈ 7–17 vs. the first 20 zeros with **no convergence** in primes or
+Hecke-mode count, author-disclaimed as non-evidentiary; (ii) the natural ζ seed
+(`λ_p≡1`) collapses the mass to a constant ⇒ rigidly-shifted Floquet bands with
+no per-zero structure; (iii) the actual zero-matching is **Conjecture 1**, an
+*existence* claim about `η_p` chosen to match the zeros — searching for those is
+inverse (Wu–Sprung with Hecke dressing); (iv) the truncated model is a trivial
+2×2 fiber `±|E_n(κ)−E_*+m|` with no eigensolve/precision/GPU surface. It adds
+nothing past the prime-built Möbius-mirror locator (#25) or the CCM flagship.
+Adjacent to the [Dirac-mirror track](dirac-mirror.md).
 
 ## 4. Ranked forward-experiment candidates
 
@@ -98,9 +114,14 @@ multiprecision on CPU; the GPU's leverage is parallel statistics and operator
    V1" idea). **Forward** in principle; *thinnest foothold* — high risk of
    collapsing into "just evaluate ζ" (→ the Riemann–Siegel evaluator direction,
    #55). Capture, do not prioritize.
-6. **F6 — Hateley adelic-Dirac toy implementation.** **Forward**, pending the §3
-   watch-item. *Novelty: high*, but large new machinery and uncertain payoff —
-   best folded into the Dirac-mirror track (#44/#45) rather than stood up cold.
+6. **F6 — Hateley adelic-Dirac toy implementation.** **Resolved: gate cleared
+   (forward, not the #44 trap), closed as won't-build (#66).** The §3 watch-item
+   is discharged — no ζ/zero data tunes the mass term. But the forward coefficient
+   families don't reproduce the zeros (random synthetic Hecke data, MAE ≈ 7–17, no
+   convergence, author-disclaimed); the matching is deferred to an inverse
+   existence conjecture; and the truncated model is a trivial 2×2 fiber with no
+   eigensolve/GPU surface. Adds nothing past #25/the flagship. (Full ruling:
+   maintainer `_private/issue-66-hateley-ruling.md`.)
 
 The litmus that tags F2–F5 as forward despite their iterative shape: the only
 legal external anchor in the loop is the **primes** (or a prime-defined

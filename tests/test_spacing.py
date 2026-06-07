@@ -120,6 +120,18 @@ def test_gue_delta3_asymptote():
     np.testing.assert_allclose(spacing.gue_delta3(large), asymptote, atol=1e-3)
 
 
+def test_delta3_gue_distance_is_zero_for_gue_and_skips_nans():
+    L = np.geomspace(0.5, 20.0, 30)
+    # The GUE curve is zero distance from itself.
+    assert spacing.delta3_gue_distance(L, spacing.gue_delta3(L)) < 1e-12
+    # A Poisson-rigidity curve (L/15) is measurably farther from GUE.
+    assert spacing.delta3_gue_distance(L, L / 15.0) > 1e-2
+    # Non-finite entries (windows beyond the span) are skipped, not propagated.
+    emp = spacing.gue_delta3(L)
+    emp[-3:] = np.nan
+    assert np.isfinite(spacing.delta3_gue_distance(L, emp))
+
+
 def test_number_variance_picket_fence():
     # A unit-spaced "picket fence" is maximally rigid: any integer-length window
     # holds exactly L levels (variance 0); a half-integer window holds L or L+1

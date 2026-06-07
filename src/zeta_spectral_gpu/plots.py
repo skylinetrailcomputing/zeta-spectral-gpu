@@ -1188,6 +1188,116 @@ def ccm_convergence_edge_figure(study: dict, *, out_path: Path | str) -> Path:
     return out
 
 
+def ccm_tracking_range_figure(study: dict, *, out_path: Path | str) -> Path:
+    """The zero-tracking range ``k*(x)`` vs the prime cutoff (issue #53).
+
+    ``study`` is the dict from ``run_ccm_convergence.study_tracking``. Left: the
+    measured tracked-block length ``k*(x)`` (filled = interior, hollow = capped at
+    the truncation ``N``), with the self-consistent linear-law overlay
+    ``#{zeros < c_hat * x}`` and the ``N`` ceiling. Right: the edge ordinate ratio
+    ``t*(x)/x``; if the tracking height grows linearly in the cutoff it sits on a
+    plateau (the measured constant ``c_hat``, shown against ``2 pi`` and ``2 pi e``).
+    This is the quantitative form of the #18 observation that the GUE-tracking range
+    extends with the prime cutoff. Forward: zeros score only.
+    """
+    rows = sorted(study["rows"], key=lambda r: r["x"])
+    xs = np.array([r["x"] for r in rows], dtype=np.float64)
+    kstar = np.array([r["k_star"] for r in rows], dtype=np.float64)
+    capped = np.array([bool(r["capped"]) for r in rows])
+    ratio = np.array([r["ratio"] if r["ratio"] is not None else np.nan for r in rows])
+    N = study["N"]
+    c_hat = study.get("c_hat", float("nan"))
+    interior = ~capped
+
+    fig, (ax_k, ax_r) = plt.subplots(1, 2, figsize=(11.0, 4.5))
+
+    # Left: k*(x) with the linear-law overlay and the N ceiling.
+    if study["rows"][0].get("k_pred") is not None:
+        kpred = np.array([r["k_pred"] for r in rows], dtype=np.float64)
+        ax_k.plot(
+            xs,
+            kpred,
+            color="#c0392b",
+            lw=1.8,
+            ls="--",
+            label=rf"$\#\{{\zeta_k < \hat c\,x\}}$, $\hat c={c_hat:.1f}$",
+        )
+    ax_k.axhline(N, color="#7f8c8d", lw=1.0, ls=":", label=f"truncation $N={N}$")
+    if interior.any():
+        ax_k.plot(
+            xs[interior],
+            kstar[interior],
+            color="#5b9bd5",
+            marker="o",
+            ms=6,
+            lw=1.6,
+            label=r"measured $k^*(x)$",
+        )
+    if capped.any():
+        ax_k.plot(
+            xs[capped],
+            kstar[capped],
+            color="#5b9bd5",
+            marker="o",
+            ms=6,
+            lw=0,
+            mfc="white",
+            label=r"$k^*$ capped at $N$",
+        )
+    ax_k.set_xlabel(r"prime cutoff $x = \lambda^2$")
+    ax_k.set_ylabel(r"zero-tracking range $k^*(x)$")
+    ax_k.set_title("How far up the spectrum tracks the zeros")
+    ax_k.legend(fontsize=8, loc="upper left")
+
+    # Right: the t*/x plateau (the linear-height law).
+    ax_r.axhline(
+        2 * np.pi * np.e, color="#7f7f7f", lw=1.0, ls=":", label=r"$2\pi e=17.08$"
+    )
+    ax_r.axhline(2 * np.pi, color="#bdc3c7", lw=1.0, ls=":", label=r"$2\pi=6.28$")
+    if np.isfinite(c_hat):
+        ax_r.axhline(
+            c_hat, color="#c0392b", lw=2, ls="--", label=rf"$\hat c={c_hat:.2f}$"
+        )
+    if interior.any():
+        ax_r.plot(
+            xs[interior],
+            ratio[interior],
+            color="#27ae60",
+            marker="s",
+            ms=6,
+            lw=1.6,
+            label=r"interior $t^*/x$",
+        )
+    if capped.any():
+        ax_r.plot(
+            xs[capped],
+            ratio[capped],
+            color="#27ae60",
+            marker="s",
+            ms=6,
+            lw=0,
+            mfc="white",
+            label=r"capped (understates $t^*$)",
+        )
+    ax_r.set_xlabel(r"prime cutoff $x = \lambda^2$")
+    ax_r.set_ylabel(r"tracking-height ratio $t^*(x)\,/\,x$")
+    ax_r.set_title(r"Is the tracking height $t^*=\zeta_{k^*}$ linear in $x$?")
+    ax_r.set_ylim(bottom=0.0)
+    ax_r.legend(fontsize=8, loc="lower right")
+
+    fig.suptitle(
+        rf"CCM operator: the zero-tracking range grows with the prime cutoff "
+        rf"($N={N}$, rel.\ tol.\ ${study['rel_tol']:g}$)"
+    )
+    fig.tight_layout()
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out
+
+
 def li_coefficients_figure(result, *, out_path: Path | str) -> Path:
     """Forward Li coefficients ``lambda_n`` and the RH growth law (issue #52).
 

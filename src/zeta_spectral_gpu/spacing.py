@@ -321,3 +321,22 @@ def gue_delta3(length: np.ndarray | float) -> np.ndarray:
     of ``Sigma^2`` in ``ln L``, the textbook signature of a rigid GUE spectrum.
     """
     return delta3_from_sigma2(gue_number_variance, length)
+
+
+def delta3_gue_distance(lengths: np.ndarray, delta3_emp: np.ndarray) -> float:
+    """Mean absolute gap between an empirical ``Delta_3`` curve and the GUE reference.
+
+    A single scalar summarising how close a spectrum's spectral rigidity is to GUE
+    over the window-length grid ``lengths`` (non-finite ``delta3_emp`` entries —
+    windows beyond the spectrum's span — are skipped). Smaller is more GUE-like.
+    This turns the cross-cutoff ``Delta_3`` *ordering* into a number (issue #53): as
+    the prime cutoff ``x`` grows, the CCM spectrum's rigidity should approach the
+    GUE curve, so this distance should fall monotonically. It does not cure the
+    finite-``N`` unfolding suppression of the *absolute* level (the #20 caveat) — it
+    only quantifies the trend the #9 read established qualitatively.
+    """
+    L = np.asarray(lengths, dtype=np.float64)
+    emp = np.asarray(delta3_emp, dtype=np.float64)
+    diff = np.abs(emp - gue_delta3(L))
+    mask = np.isfinite(diff)
+    return float(np.mean(diff[mask])) if mask.any() else float("nan")

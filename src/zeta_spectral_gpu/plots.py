@@ -12,7 +12,7 @@ from pathlib import Path
 import matplotlib
 import numpy as np
 
-from . import katz_sarnak, spacing, zeros
+from . import katz_sarnak, li_criterion, spacing, zeros
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402  (must follow matplotlib.use)
@@ -1179,6 +1179,73 @@ def ccm_convergence_edge_figure(study: dict, *, out_path: Path | str) -> Path:
         f"CCM error profile vs Heisenberg floor ($N={study['N']}$, $x={study['x']}$)"
     )
     ax.legend(loc="lower right", fontsize=9)
+    fig.tight_layout()
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out
+
+
+def li_coefficients_figure(result, *, out_path: Path | str) -> Path:
+    """Forward Li coefficients ``lambda_n`` and the RH growth law (issue #52).
+
+    ``result`` is a ``li_criterion.LiCriterionResult``. Top panel: the computed
+    ``lambda_n`` (forward, from ``log xi``) as bars, coloured by sign -- RH says
+    none ever dip below the zero baseline -- with the asymptotic main term
+    ``(n/2)(log n + gamma - 1 - log 2pi)`` overlaid where it is positive. Bottom
+    panel: the relative deviation ``|lambda_n - main(n)| / lambda_n`` on a log axis,
+    shrinking as ``n`` grows -- the growth law asserting itself.
+    """
+    n = np.arange(1, result.n_max + 1)
+    lam = np.array([float(c) for c in result.coefficients], dtype=np.float64)
+    main = np.array([float(li_criterion.li_main_term(int(k))) for k in n])
+
+    fig, (ax0, ax1) = plt.subplots(
+        2, 1, figsize=(7.0, 6.2), sharex=True, height_ratios=[2, 1]
+    )
+
+    pos = lam >= 0
+    ax0.bar(
+        n[pos],
+        lam[pos],
+        width=0.8,
+        color="#cfe3f7",
+        edgecolor="#5b9bd5",
+        label=r"$\lambda_n \geq 0$ (RH-consistent)",
+    )
+    if (~pos).any():
+        ax0.bar(
+            n[~pos],
+            lam[~pos],
+            width=0.8,
+            color="#f5c6c6",
+            edgecolor="#c0392b",
+            label=r"$\lambda_n < 0$ (would refute RH)",
+        )
+    main_pos = main > 0
+    ax0.plot(
+        n[main_pos],
+        main[main_pos],
+        color="#c0392b",
+        lw=1.8,
+        ls="--",
+        label=r"$\frac{n}{2}(\ln n + \gamma - 1 - \ln 2\pi)$",
+    )
+    ax0.axhline(0.0, color="#7f8c8d", lw=1.0)
+    ax0.set_ylabel(r"Li coefficient $\lambda_n$")
+    ax0.set_title(
+        f"Forward Li criterion: $\\lambda_n$ from $\\log\\xi$ "
+        f"($n\\leq{result.n_max}$, dps$={result.dps}$; "
+        f"min $\\lambda={float(result.min_value):.3g}$ at $n={result.min_index}$)"
+    )
+    ax0.legend(loc="upper left", fontsize=9)
+
+    rel = np.array([float(r) for r in result.main_term_relative_error()])  # n = 2..
+    ax1.semilogy(n[1:], rel, color="#5b9bd5", lw=1.4, marker="o", ms=3)
+    ax1.set_xlabel("index $n$")
+    ax1.set_ylabel(r"$|\lambda_n - \mathrm{main}(n)| / \lambda_n$")
     fig.tight_layout()
 
     out = Path(out_path)

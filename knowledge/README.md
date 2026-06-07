@@ -46,6 +46,13 @@ top-level `CLAUDE.md`; per-session narrative lives in git history.
   `1 − sin(2πx)/(2πx)` and away from unitary/orthogonal. The forward family
   companion to the single-sequence GUE warm-up; mpmath ground truth + the GPU
   locator as the embarrassingly-parallel-over-the-family producer.
+- [`li-criterion.md`](li-criterion.md) — Li's criterion (#52): RH ⟺ `λ_n ≥ 0`,
+  computed **forward** from the `log ξ` Taylor coefficients (Stieltjes constants +
+  polygamma; Bombieri–Lagarias), never the `Σ_ρ` sum over zeros. A cheap **scalar
+  shadow** of the flagship's Weil positivity — the swept `λ_n` come out positive,
+  tracking the RH growth law `(n/2)(log n + γ − 1 − log 2π)`. mpmath-bound
+  (cancellation + Stieltjes precision); the GPU angle is the parallel-over-family
+  GRH sweep `λ_n(χ)`, not a deeper single-`ζ` pass.
 - [`predecessor/`](predecessor/) — distilled, public-safe archive of the CPU
   predecessor `wedgetrigfunctions202601` (private): the harmonic-functions →
   conical → hyperbolic/Selberg → GUE arc, and the arithmetic-chaos headline

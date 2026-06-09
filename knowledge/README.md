@@ -78,6 +78,12 @@ top-level `CLAUDE.md`; per-session narrative lives in git history.
   tracking the RH growth law `(n/2)(log n + γ − 1 − log 2π)`. mpmath-bound
   (cancellation + Stieltjes precision); the GPU angle is the parallel-over-family
   GRH sweep `λ_n(χ)`, not a deeper single-`ζ` pass.
+- [`quantum-chaos-map.md`](quantum-chaos-map.md) — the quantum-chaos camp's
+  toolkit keyed to this repo's tracks (#88): the Gutzwiller ↔ explicit-formula
+  dictionary made explicit (orbits = primes, periods = `log p`, amplitudes =
+  `Λ(n)/√n`), what the camp adds beyond universal RMT (the lower-order
+  arithmetic ladder #84; intermediate statistics for the CCM tail #87), and
+  what stays out of charter (moments, BBM, quantum graphs).
 - [`bibliography.md`](bibliography.md) — the primary source papers behind the
   experiments, with stable arXiv links and which note/issue uses each. The
   tracked index of the (gitignored) local PDF cache, so contributors can see the

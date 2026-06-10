@@ -1721,3 +1721,159 @@ def ccm_intermediate_stats_figure(study: dict, *, out_path: Path | str) -> Path:
     fig.savefig(out, dpi=150)
     plt.close(fig)
     return out
+
+
+def davenport_heilbronn_growth_figure(study: dict, *, out_path: Path | str) -> Path:
+    """The #85 growth dichotomy on a genuine off-line zero (log-log profiles).
+
+    ``study``: ``truncations`` (1d int array), ``profiles`` — an ordered mapping
+    ``label -> |M(n)|`` array — ``slopes`` (``label -> measured slope``), and
+    ``predicted`` (the off-line exponent ``sigma_c - 1/2``). The off-line curve
+    should rise visibly above the no-Euler-product background of the other two.
+    """
+    n = np.asarray(study["truncations"], dtype=np.float64)
+    colors = {"off-line": "#c0392b", "on-line": "#2c6fbb", "generic": "#27ae60"}
+
+    fig, ax = plt.subplots(figsize=(7.0, 4.5))
+    for label, profile in study["profiles"].items():
+        slope = study["slopes"][label]
+        color = colors.get(label.split()[0], None)
+        ax.loglog(
+            n,
+            np.asarray(profile, dtype=np.float64),
+            lw=1.2,
+            color=color,
+            label=f"{label} (slope {slope:+.3f})",
+        )
+    anchor = study["profiles"]["off-line"][-1] if "off-line" in study["profiles"] else 1
+    guide = anchor * (n / n[-1]) ** study["predicted"]
+    ax.loglog(
+        n,
+        guide,
+        ls="--",
+        color="#666666",
+        lw=1.0,
+        label=rf"predicted $n^{{{study['predicted']:.3f}}}$",
+    )
+    ax.set_xlabel("truncation $n$")
+    ax.set_ylabel(r"$|\sum_{k \leq n} c(k)\, k^{-1/2 - iE}|$")
+    ax.set_title("Davenport–Heilbronn: growth law at a genuine off-line zero")
+    ax.legend(fontsize=8)
+    fig.tight_layout()
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out
+
+
+def davenport_heilbronn_stats_figure(study: dict, *, out_path: Path | str) -> Path:
+    """The #85 statistics control: f keeps repulsion; the superposition does not.
+
+    ``study``: ``spacings_f`` / ``spacings_union`` (unit-mean unfolded nearest-
+    neighbour spacings of f's on-line zeros and of the two-L superposition),
+    ``rtilde`` (``label -> mean folded ratio``), ``deficit`` (smooth-count
+    deficit of f), ``t_max``.
+    """
+    fig, axes = plt.subplots(1, 2, figsize=(11.0, 4.3), sharey=True)
+    grid = np.linspace(1e-3, 3.5, 400)
+    panels = (
+        ("f (Davenport–Heilbronn)", study["spacings_f"], "#cfe3f7", "#5b9bd5"),
+        (
+            r"superposition: $L_\chi \cup L_{\bar\chi}$",
+            study["spacings_union"],
+            "#fde2cf",
+            "#e67e22",
+        ),
+    )
+    for ax, (label, spac, fill, edge) in zip(axes, panels):
+        s = np.asarray(spac, dtype=np.float64)
+        centres, density = spacing.spacing_density(s, n_bins=40, s_max=3.5)
+        width = float(centres[1] - centres[0])
+        ax.bar(
+            centres,
+            density,
+            width=width,
+            align="center",
+            color=fill,
+            edgecolor=edge,
+            label=f"{label} (N={s.size:,})",
+        )
+        ax.plot(
+            grid, spacing.gue_wigner_surmise(grid), color="#c0392b", lw=1.6, label="GUE"
+        )
+        ax.plot(
+            grid,
+            spacing.poisson_surmise(grid),
+            color="#27ae60",
+            lw=1.6,
+            ls="--",
+            label="Poisson",
+        )
+        ax.set_xlabel("normalised spacing $s$")
+        ax.set_xlim(0.0, 3.5)
+        ax.legend(fontsize=8)
+    axes[0].set_ylabel("$p(s)$")
+    ratios = ", ".join(
+        rf"$\langle\tilde r\rangle_{{{k}}}={v:.3f}$" for k, v in study["rtilde"].items()
+    )
+    fig.suptitle(
+        f"Davenport–Heilbronn statistics control to $t={study['t_max']:g}$: "
+        f"{ratios}; on-line deficit {study['deficit']:.1f}"
+    )
+    fig.tight_layout()
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out
+
+
+def davenport_heilbronn_locator_figure(study: dict, *, out_path: Path | str) -> Path:
+    """The #85 locator control: clean peaks for a genuine L, mounds for f.
+
+    ``study``: ``grid``, ``abs_f`` / ``abs_chi`` (locator magnitudes with the
+    ``1/f`` inverse weights and the genuine ``chi mu`` weights), ``threshold``,
+    ``true_f`` / ``true_chi`` (independent on-line zeros), ``off_line``
+    (off-line ordinates). The off-line ordinates should sit under the spurious
+    mounds of the f trace and nowhere on the chi trace.
+    """
+    grid = np.asarray(study["grid"], dtype=np.float64)
+    fig, axes = plt.subplots(2, 1, figsize=(10.0, 6.0), sharex=True)
+    traces = (
+        ("$1/f$ inverse weights", study["abs_f"], study["true_f"], "#5b9bd5"),
+        (
+            r"$\chi\,\mu$ weights ($L_\chi$)",
+            study["abs_chi"],
+            study["true_chi"],
+            "#e67e22",
+        ),
+    )
+    for ax, (label, abs_m, true_zeros, color) in zip(axes, traces):
+        ax.plot(grid, np.asarray(abs_m, dtype=np.float64), lw=0.7, color=color)
+        ax.axhline(study["threshold"], color="#666666", lw=1.0, ls="--")
+        ax.plot(
+            np.asarray(true_zeros, dtype=np.float64),
+            np.full(len(true_zeros), -0.5),
+            "|",
+            ms=8,
+            color="#2c3e50",
+            label="independent on-line zeros",
+        )
+        for t in study["off_line"]:
+            ax.axvline(t, color="#c0392b", lw=1.0, ls=":")
+        ax.set_ylabel(f"$|M(E)|$\n{label}")
+        ax.legend(fontsize=8, loc="upper left")
+    axes[0].set_title(
+        "Davenport–Heilbronn locator control (dotted red: off-line zero ordinates)"
+    )
+    axes[1].set_xlabel("energy $E$")
+    fig.tight_layout()
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out

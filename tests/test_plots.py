@@ -139,6 +139,34 @@ def test_katz_sarnak_density_figure_writes_png(tmp_path):
     assert len(out.read_bytes()) > 1000
 
 
+def test_lehmer_census_figure_writes_png(tmp_path):
+    from zeta_spectral_gpu.lehmer_census import PairRow
+
+    rng = np.random.default_rng(3)
+    s = np.abs(rng.normal(1.0, 0.4, size=3000)) + 1e-3
+    rows = [
+        PairRow(
+            gamma_minus=1e5 + 10.0 * k,
+            gamma_plus=1e5 + 10.0 * k + 0.1,
+            s=float(sk),
+            delta2g=float(3.0 * sk * sk),
+            lam=-1e-4 if 3.0 * sk * sk < 0.8 else None,
+            below_floor=False,
+        )
+        for k, sk in enumerate(np.linspace(0.03, 0.9, 60))
+    ]
+    study = {
+        "windows": [
+            {"label": "t~1e5", "s": s, "floor": 2e-5, "rows": rows},
+            {"label": "t~1e6", "s": s * 1.05, "floor": 6e-5, "rows": []},
+        ]
+    }
+    out = plots.lehmer_census_figure(study, out_path=tmp_path / "lehmer.png")
+    assert out.exists()
+    assert out.read_bytes()[:8] == _PNG_MAGIC
+    assert len(out.read_bytes()) > 1000
+
+
 def test_davenport_heilbronn_figures_write_png(tmp_path):
     rng = np.random.default_rng(7)
     truncations = np.unique(np.geomspace(100, 10_000, 50).astype(np.int64))

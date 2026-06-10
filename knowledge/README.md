@@ -43,6 +43,14 @@ top-level `CLAUDE.md`; per-session narrative lives in git history.
   the cutoff `x` grows the local statistics relax toward GUE and the
   zero-tracking window converges to the real zeros' `⟨r̃⟩`; why pushing `N` is the
   wrong lever (the pole-locked tail).
+- [`ccm-intermediate-statistics.md`](ccm-intermediate-statistics.md) — the Šeba /
+  rank-one intermediate-statistics read of the CCM pole-locked tail (#87): the
+  secular equation as a point-scatterer system (signed couplings ⇒ no
+  interlacing), the parameter-free local two-pole model that reproduces the
+  measured gap occupancy (98–100%) and tail statistics, the scale-free
+  intermediate coupling `w ~ 0.3–0.6` (the tail never reaches the picket), and
+  the two boundaries: the `2πx` density crossover falls out of the couplings,
+  the `t* ≈ 12x` tracking law does not (it lives in coupling correlations).
 - [`ccm-fill-precision.md`](ccm-fill-precision.md) — the precision anatomy of the
   flagship Weil-fill and why a **double-double fill is a no** (#54): ~99% of the
   fp64 matrix error is the special-function coefficients, not the fill arithmetic

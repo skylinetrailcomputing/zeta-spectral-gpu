@@ -112,7 +112,13 @@ the `t*/x` plateau).
   (picket-like) and enlarging `N` just extends that non-GUE tail. The lever for the
   science is the prime cutoff `x` (with `N` only large enough to resolve `k*(x)`);
   the #18 eigensolve speedup matters because it makes the *x-sweep* cheap, not
-  because it lets `N` grow.
+  because it lets `N` grow. The tail itself now has a quantitative theory — the
+  Šeba / rank-one local model of #87
+  ([`ccm-intermediate-statistics.md`](ccm-intermediate-statistics.md)): it is a
+  scale-free *intermediate* point process (⟨r̃⟩ ≈ 0.76–0.84, never the literal
+  picket), the `2πx` density crossover falls out of the couplings alone, and the
+  `t* ≈ 12x` tracking law does not — it lives in the couplings' long-range
+  correlations, which is why the zeros are needed to score it.
 
 ## Reproduce
 

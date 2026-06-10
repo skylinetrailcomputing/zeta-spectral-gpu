@@ -155,6 +155,26 @@ Genuinely past the project's training cutoff; surfaced by the literature pass.
   trivial 2×2 fiber with no eigensolve/GPU surface. See
   [`frontier-survey-2026.md`](frontier-survey-2026.md). Issue #66.
 
+## Arithmetic correlations warm-up (#84)
+
+- **Conrey & Snaith — *Applications of the L-functions ratios conjectures*** —
+  Proc. London Math. Soc. **94** (2007), 594–646.
+  [arXiv:math/0509480](https://arxiv.org/abs/math/0509480). **Primary for
+  #84.** Theorem 4.1 (eqs. 4.20–4.27): the full lower-order pair correlation of
+  the zeros from the ratios conjecture — the modern, explicitly computable form
+  of the Bogomolny–Keating result that
+  `arithmetic_correlations.cs_pair_density` implements. Pinned
+  equation-by-equation in
+  [`arithmetic-correlations.md`](arithmetic-correlations.md).
+
+- **Bogomolny — *Quantum and arithmetical chaos*** (Les Houches lectures,
+  2003). [arXiv:nlin/0312061](https://arxiv.org/abs/nlin/0312061). The
+  Bogomolny–Keating Hardy–Littlewood form of the same two-point function
+  (`Φ^diag`/`Φ^off` over the twin-prime singular series) — transcribed
+  independently and asserted exactly equal to CS Theorem 4.1 in the tests —
+  plus the Odlyzko `10²³` deviation plots this experiment reproduces at low
+  height. See [`arithmetic-correlations.md`](arithmetic-correlations.md).
+
 ---
 
 *Rebuild the local cache:* fetch each PDF from `https://arxiv.org/pdf/<id>` (e.g.

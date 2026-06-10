@@ -1877,3 +1877,128 @@ def davenport_heilbronn_locator_figure(study: dict, *, out_path: Path | str) -> 
     fig.savefig(out, dpi=150)
     plt.close(fig)
     return out
+
+
+def zero_form_factor_figure(
+    u: np.ndarray,
+    s2_emp: np.ndarray,
+    s2_pred: np.ndarray,
+    ramp: np.ndarray,
+    prime_marks: list[tuple[float, str]],
+    *,
+    out_path: Path | str,
+    title: str | None = None,
+) -> Path:
+    """Save |S(u)|^2 of the zeros vs the explicit-formula prime prediction.
+
+    ``s2_emp``/``s2_pred`` are the empirical and predicted ``|S(u)|^2`` on the
+    grid ``u``; ``ramp`` is the smoothed GUE/diagonal background and
+    ``prime_marks`` the ``(log p^m, label)`` positions where the arithmetic
+    peaks must sit (issue #84). Log scale: the peaks stand orders of magnitude
+    above the ramp below the Heisenberg frequency.
+    """
+    fig, ax = plt.subplots(figsize=(10.0, 5.0))
+    ax.semilogy(u, s2_emp, color="#5b9bd5", lw=0.9, label="zeros $|S(u)|^2$")
+    ax.semilogy(
+        u,
+        s2_pred,
+        color="#c0392b",
+        lw=1.0,
+        ls="--",
+        label=r"primes: $|\frac{1}{2\pi}\sum_n \Lambda(n) n^{-1/2} W(\log n - u)|^2$",
+    )
+    ax.semilogy(
+        u,
+        ramp,
+        color="#27ae60",
+        lw=1.6,
+        ls=":",
+        label=r"GUE diagonal ramp $\frac{u}{2\pi}\int w^2$",
+    )
+    top = float(np.nanmax(s2_emp)) * 3.0
+    for pos, label in prime_marks:
+        if u[0] <= pos <= u[-1]:
+            ax.axvline(pos, color="#999999", lw=0.5, zorder=0)
+            ax.annotate(
+                label,
+                (pos, top),
+                ha="center",
+                va="bottom",
+                fontsize=7,
+                color="#555555",
+            )
+    ax.set_xlabel(r"frequency $u$  (peaks at $u = \log p^m$)")
+    ax.set_ylabel(r"$|S(u)|^2$")
+    ax.set_xlim(float(u[0]), float(u[-1]))
+    ax.set_title(title or "Spectral form factor of the zeros: primes beyond GUE")
+    ax.legend(loc="lower right", fontsize=8)
+    fig.tight_layout()
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out
+
+
+def pair_correlation_deviation_figure(
+    eps: np.ndarray,
+    emp: np.ndarray,
+    cs: np.ndarray,
+    gue: np.ndarray,
+    plateau: float,
+    *,
+    out_path: Path | str,
+    title: str | None = None,
+) -> Path:
+    """Save the arithmetic deviation of the zeros' pair correlation from GUE.
+
+    All inputs are pair densities per unit raw separation ``eps`` over the same
+    height window: ``emp`` (histogram), ``cs`` (Conrey-Snaith Theorem 4.1) and
+    ``gue`` (sine kernel only); ``plateau`` is the uncorrelated level used to
+    normalise. Top panel: R2 itself; bottom: the deviation from GUE, where the
+    arithmetic (Bogomolny-Keating) terms are the entire signal (issue #84).
+    """
+    fig, axes = plt.subplots(
+        2, 1, figsize=(10.0, 6.5), sharex=True, height_ratios=[2, 1]
+    )
+    axes[0].plot(eps, emp / plateau, color="#5b9bd5", lw=0.9, label="zeros (histogram)")
+    axes[0].plot(
+        eps, cs / plateau, color="#c0392b", lw=1.2, ls="--", label="Conrey-Snaith"
+    )
+    axes[0].plot(
+        eps, gue / plateau, color="#27ae60", lw=1.2, ls=":", label="GUE sine kernel"
+    )
+    axes[0].set_ylabel(r"$R_2(\epsilon)$ / plateau")
+    axes[0].legend(loc="lower right", fontsize=8)
+
+    axes[1].axhline(0.0, color="#666666", lw=0.8)
+    axes[1].plot(
+        eps,
+        (emp - gue) / plateau,
+        color="#5b9bd5",
+        lw=0.9,
+        label="zeros $-$ GUE",
+    )
+    axes[1].plot(
+        eps,
+        (cs - gue) / plateau,
+        color="#c0392b",
+        lw=1.2,
+        ls="--",
+        label="Conrey-Snaith $-$ GUE (arithmetic terms)",
+    )
+    axes[1].set_xlabel(r"raw ordinate separation $\epsilon$")
+    axes[1].set_ylabel("deviation / plateau")
+    axes[1].legend(loc="lower right", fontsize=8)
+
+    axes[0].set_title(
+        title or "Pair correlation of the zeros: lower-order arithmetic terms"
+    )
+    fig.tight_layout()
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out

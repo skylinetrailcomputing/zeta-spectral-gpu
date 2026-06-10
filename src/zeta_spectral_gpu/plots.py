@@ -12,7 +12,7 @@ from pathlib import Path
 import matplotlib
 import numpy as np
 
-from . import katz_sarnak, li_criterion, spacing, zeros
+from . import katz_sarnak, lehmer_census, li_criterion, spacing, zeros
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402  (must follow matplotlib.use)
@@ -1995,6 +1995,95 @@ def pair_correlation_deviation_figure(
     axes[0].set_title(
         title or "Pair correlation of the zeros: lower-order arithmetic terms"
     )
+    fig.tight_layout()
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out
+
+
+def lehmer_census_figure(
+    study: dict, *, out_path: Path | str, title: str | None = None
+) -> Path:
+    """Two-panel #86 readout: small-gap tail vs GUE, and the CSV census plane.
+
+    ``study["windows"]`` rows carry ``label``, ``s`` (normalized gaps),
+    ``floor`` (the fp64 resolution floor), and ``rows`` (``PairRow`` lists).
+    Left: empirical cumulative gap distribution per height window (log-log)
+    against the exact sine-kernel cube law and the Wigner-surmise CDF, with
+    each window's fp64 floor marked. Right: every censused pair on the
+    ``(s, Delta^2 g)`` plane with the CSV ``4/5`` Lehmer bar.
+    """
+    windows = study["windows"]
+    colors = ["#5b9bd5", "#c0392b", "#27ae60", "#8e44ad", "#e67e22"]
+    fig, axes = plt.subplots(1, 2, figsize=(11.5, 4.6))
+
+    s_lo = 8e-3
+    grid = np.geomspace(s_lo, 1.0, 300)
+    fine = np.linspace(0.0, 1.0, 4001)
+    wigner_cdf = np.cumsum(spacing.gue_wigner_surmise(fine)) * (fine[1] - fine[0])
+    for k, w in enumerate(windows):
+        s = np.sort(np.asarray(w["s"]))
+        ecdf = np.searchsorted(s, grid, side="right") / s.size
+        ok = ecdf > 0
+        axes[0].loglog(
+            grid[ok],
+            ecdf[ok],
+            color=colors[k % len(colors)],
+            lw=1.6,
+            label=f"{w['label']} (n={s.size:,})",
+        )
+        axes[0].axvline(
+            w["floor"], color=colors[k % len(colors)], ls=":", lw=1.0, alpha=0.7
+        )
+    axes[0].loglog(
+        grid,
+        lehmer_census.gue_small_gap_cdf(grid),
+        color="black",
+        lw=1.2,
+        ls="--",
+        label=r"GUE $(\pi^2/9)s^3$",
+    )
+    axes[0].loglog(
+        grid,
+        np.interp(grid, fine, wigner_cdf),
+        color="gray",
+        lw=1.0,
+        ls="-.",
+        label="Wigner surmise CDF",
+    )
+    axes[0].set_xlabel("normalized gap $s$")
+    axes[0].set_ylabel(r"$P(\mathrm{gap} < s)$")
+    axes[0].legend(fontsize=8, loc="upper left")
+    axes[0].set_title("small-gap tail vs GUE repulsion (dotted: fp64 floors)")
+
+    for k, w in enumerate(windows):
+        rows = w["rows"]
+        if not rows:
+            continue
+        ss = np.array([r.s for r in rows])
+        qq = np.array([r.delta2g for r in rows])
+        n_lehmer = sum(1 for r in rows if r.lam is not None)
+        axes[1].loglog(
+            ss,
+            qq,
+            ".",
+            ms=3,
+            alpha=0.5,
+            color=colors[k % len(colors)],
+            label=f"{w['label']}: {n_lehmer} Lehmer pairs",
+        )
+    axes[1].axhline(
+        lehmer_census.CSV_THRESHOLD, color="black", ls="--", lw=1.2, label=r"CSV $4/5$"
+    )
+    axes[1].set_xlabel("normalized gap $s$")
+    axes[1].set_ylabel(r"$\Delta^2 g$  (Lehmer pair below the bar)")
+    axes[1].legend(fontsize=8, loc="lower right")
+    axes[1].set_title("CSV census plane")
+
+    fig.suptitle(title or "Lehmer-pair / small-gap census (#86)")
     fig.tight_layout()
 
     out = Path(out_path)

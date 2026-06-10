@@ -175,6 +175,30 @@ Genuinely past the project's training cutoff; surfaced by the literature pass.
   plus the Odlyzko `10²³` deviation plots this experiment reproduces at low
   height. See [`arithmetic-correlations.md`](arithmetic-correlations.md).
 
+## Lehmer-pair / small-gap census (#86)
+
+- **Csordas, Smith & Varga — *Lehmer pairs of zeros, the de Bruijn–Newman
+  constant Λ, and the Riemann Hypothesis*** — Constructive Approximation **10**
+  (1994), 107–129. No arXiv copy. **Primary for #86.** The Lehmer-pair
+  criterion `Δ²g < 4/5` and the per-pair lower bound `λ ≤ Λ` that
+  `lehmer_census.csv_lambda` implements (consumed here via Stopple's
+  restatement, below). See [`lehmer-census.md`](lehmer-census.md).
+
+- **Csordas, Odlyzko, Smith & Varga — *A new Lehmer pair of zeros and a new
+  lower bound for the de Bruijn–Newman constant Λ*** — Electron. Trans. Numer.
+  Anal. **1** (1993), 104–111. The pair `{γ_1048449114, γ_1048449115}` at
+  `t ≈ 3.8886e8` and the bound `−5.895e−9 < Λ`; the empirical pin for the
+  factor-4 normalization between the γ-coordinate formula and every published
+  `Λ` table (see [`lehmer-census.md`](lehmer-census.md)).
+
+- **Stopple — *Lehmer pairs revisited*** — Experimental Mathematics **26**
+  (2017), 45–53. [arXiv:1508.05870](https://arxiv.org/abs/1508.05870). The
+  precise CSV definition in zeta-ordinate coordinates (eqs. 2–5) that
+  `lehmer_census.csv_g`/`csv_lambda` transcribe, the section-6 data that
+  reconstructs the COSV pair's `Δ ≈ 1.0857e−4`, and the `7398 / 114661`
+  Lehmer-pair count on `10⁶ ≤ t ≤ 10⁶ + 6·10⁴` that the census reproduces
+  forward. See [`lehmer-census.md`](lehmer-census.md).
+
 ---
 
 *Rebuild the local cache:* fetch each PDF from `https://arxiv.org/pdf/<id>` (e.g.

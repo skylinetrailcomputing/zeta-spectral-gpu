@@ -66,6 +66,15 @@ top-level `CLAUDE.md`; per-session narrative lives in git history.
   contour to survive its removable singularities, and fp64 has a phase-argument
   height ceiling (~7 digits by `t = 1e8`). Unlocks zero verification (#51/#60),
   De Bruijn–Newman at height (#20), and value-distribution work.
+- [`lehmer-census.md`](lehmer-census.md) — the small-gap / Lehmer-pair census
+  (#86), the first science consumer of the #55 evaluator: ~255k zeros scanned
+  forward across `t ~ 1e5–1e7`, the GUE `s³` small-gap tail with its
+  height-decaying arithmetic deficit, and the Csordas–Smith–Varga census —
+  Stopple's `7398/114661` Lehmer-pair count reproduced forward (7385/114657),
+  the COSV 1993 record pair resolved below the fp64 floor by the
+  budget-mandated mpmath tier (`λ = −5.890e−9` vs published `−5.895e−9`), and
+  the factor-4 normalization trap between the γ-coordinate CSV formula and
+  every published `Λ` table, pinned empirically.
 - [`frontier-survey-2026.md`](frontier-survey-2026.md) — the #50 literature
   coverage check (2023–2026 forward spectral / Hilbert–Pólya numerics): the
   Connes-lineage frontier (incl. the 2026 Groskin `connes-cvs` implementation

@@ -16,6 +16,11 @@ the zeros are only the yardstick. Four studies (Sliwinski arXiv:2601.12133):
                 edge across a truncation sweep and locates the crossover N above
                 which fp64's E is set by the genuine (robust) edge, not corruption.
                 Gates any Sliwinski outreach; the answer here is NO-GO.
+  intermediate -- (#87) The Seba / rank-one intermediate-statistics read of the
+                pole-locked tail: first-order pinning offsets from the secular
+                couplings alone predict the tail's spacing statistics (picket
+                with jitter) and the coupling-vs-pole-spacing crossover, compared
+                against the measured tracking height t*(x) ~ 12 x (#53).
   accelerate -- Exploit the law (F2): Wynn-epsilon / Aitken extrapolation of a
                 zero's cutoff-sequence toward x -> infinity, vs the raw best cutoff.
                 The honest answer is NEGATIVE: where the convergence is clean (the
@@ -45,6 +50,7 @@ import numpy as np
 from zeta_spectral_gpu import (
     ccm,
     ccm_convergence as cc,
+    ccm_intermediate as ci,
     debruijn_newman,
     plots,
     spacing,
@@ -72,6 +78,46 @@ def spectrum_mpf(N: int, x: int, dps: int, *, refresh: bool = False) -> list:
             return [mp.mpf(s) for s in json.loads(cache.read_text())]
     with mp.workdps(dps):
         spec = ccm.operator_spectrum(N, mp.sqrt(x), count=N, dps=dps)
+        out = [mp.nstr(s, dps) for s in spec]
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(json.dumps(out))
+    with mp.workdps(dps):
+        return [mp.mpf(s) for s in out]
+
+
+def xi_mpf(N: int, x: int, dps: int, *, refresh: bool = False) -> list:
+    """The minimal even Weil eigenvector ``xi`` at ``(N, x, dps)``, full precision.
+
+    The couplings of the rank-one secular equation (#87) — the same eigensolve
+    that produces the spectrum, so caching it alongside makes the intermediate-
+    statistics read free once the spectrum has been paid for. Stored as decimal
+    strings like the spectrum cache.
+    """
+    cache = DATA / f"ccm_xi_mpf_N{N}_x{x}_dps{dps}.json"
+    if cache.exists() and not refresh:
+        with mp.workdps(dps):
+            return [mp.mpf(s) for s in json.loads(cache.read_text())]
+    with mp.workdps(dps):
+        lam = mp.sqrt(x)
+        A = ccm.assemble_weil_matrix(N, lam)
+        mode = ccm.smallest_even_eigenvector(A, N)
+        out = [mp.nstr(v, dps) for v in mode.eigenvector]
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(json.dumps(out))
+    with mp.workdps(dps):
+        return [mp.mpf(s) for s in out]
+
+
+def spectrum_from_xi(N: int, x: int, dps: int, xi: list) -> list:
+    """The positive spectrum from an already-computed ``xi`` (root-find only),
+    reading/writing the same cache :func:`spectrum_mpf` uses."""
+    cache = DATA / f"ccm_spec_mpf_N{N}_x{x}_dps{dps}.json"
+    if cache.exists():
+        with mp.workdps(dps):
+            return [mp.mpf(s) for s in json.loads(cache.read_text())]
+    with mp.workdps(dps):
+        L = 2 * mp.log(mp.sqrt(x))
+        spec = ccm.operator_eigenvalues(xi, N, L, count=N)
         out = [mp.nstr(s, dps) for s in spec]
     cache.parent.mkdir(parents=True, exist_ok=True)
     cache.write_text(json.dumps(out))
@@ -291,6 +337,164 @@ def study_tracking(
 
 
 # ----------------------------------------------------------------------------
+# intermediate: the Seba / rank-one read of the pole-locked tail (#87)
+# ----------------------------------------------------------------------------
+
+
+def study_intermediate(
+    xs: list[int],
+    *,
+    N: int,
+    window: int = 40,
+    step: int = 8,
+    refresh: bool = False,
+) -> dict:
+    """Intermediate statistics of the pole-locked tail from the couplings alone.
+
+    For each cutoff ``x``: recover the secular couplings ``xi`` (cached
+    eigensolve), build the local two-pole prediction (:func:`ci.local_gap_model`),
+    and score it against the measured spectrum:
+
+    - **locality validation** — per-gap occupancy agreement and nearest-root
+      deviation (in units of the pole spacing ``Delta``) between the local
+      prediction and the actual secular roots;
+    - **tail statistics** — windowed ``<r~>`` curves and the tail spacing
+      histogram, measured vs predicted, against the Poisson / semi-Poisson /
+      GUE / picket reference values; plus the effective-coupling profile
+      ``w_n = |xi_n / R_n| / Delta`` (:func:`ci.pinned_tail`);
+    - **the two boundaries** — the predicted-occupancy deficit plateau
+      (:func:`ci.deficit_plateau`, the density crossover ``~ 2 pi x``) and the
+      measured tracking height ``t*(x) = zeta_{k*}`` (#53, ``~ 12 x``), to show
+      which of them the coupling-side read sees.
+
+    Forward: couplings and poles are the operator's own; the zeros enter only to
+    score (``t*``, and the tail-window placement on the comparison axis).
+    """
+    print(
+        f"\n[intermediate] Seba / rank-one read of the pole-locked tail "
+        f"(N={N}, window={window})"
+    )
+    print(
+        f"{'x':>4} {'dps':>5} {'occ=':>5} {'med|dz|':>8} {'r~tail':>7} {'r~pred':>7} "
+        f"{'w_med':>6} {'t_dens':>7} {'/x':>6} {'t*':>8} {'/x':>6} {'defct':>6}"
+    )
+    rows = []
+    pool_meas: list[np.ndarray] = []
+    pool_pred: list[np.ndarray] = []
+    for x in xs:
+        dps = cc.suggest_dps(x)
+        xi = xi_mpf(N, x, dps, refresh=refresh)
+        spec = spectrum_from_xi(N, x, dps, xi)
+        zr = zeros_mpf(len(spec), dps)
+        with mp.workdps(dps):
+            errs = [abs(spec[k] - zr[k]) for k in range(len(spec))]
+            L = float(mp.log(x))
+            model = ci.local_gap_model(xi, N, L)
+            tail = ci.pinned_tail(xi, N, L)
+        k_star = cc.tracking_length(errs, zr)
+        t_star = cc.tracking_height(zr, k_star)
+        t_star = float(t_star) if t_star is not None else None
+        plateau = ci.deficit_plateau(model)
+        spec_f = np.sort(np.array([float(s) for s in spec], dtype=np.float64))
+        delta = model.spacing
+
+        # Locality validation: occupancy agreement + per-root deviation.
+        occ_meas = np.histogram(spec_f, bins=model.edges)[0]
+        occ_agree = float(np.mean(model.occupancy == occ_meas))
+        near = (
+            np.array([np.abs(spec_f - z).min() for z in model.levels]) / delta
+            if model.levels.size and spec_f.size
+            else np.array([np.nan])
+        )
+        med_dz = float(np.median(near))
+
+        # Windowed <r~> curves, measured vs predicted.
+        meas = ci.windowed_rtilde(spec_f, window=window, step=step)
+        pred = ci.windowed_rtilde(model.levels, window=window, step=step)
+
+        # Tail statistics above the measured tracking height (trimmed to the
+        # common span: the top gap's root can escape the secular finder).
+        t_lo = t_star if t_star is not None else 0.0
+        hi = min(spec_f[-1], model.levels[-1]) if model.levels.size else 0.0
+        tail_meas = spec_f[(spec_f > t_lo) & (spec_f <= hi)]
+        tail_pred = model.levels[(model.levels > t_lo) & (model.levels <= hi)]
+        rt_meas = (
+            float(np.nanmean(spacing.spacing_ratios(tail_meas)))
+            if tail_meas.size >= 8
+            else None
+        )
+        rt_pred = (
+            float(np.nanmean(spacing.spacing_ratios(tail_pred)))
+            if tail_pred.size >= 8
+            else None
+        )
+        pool_meas.append(np.diff(tail_meas) / delta)
+        pool_pred.append(np.diff(tail_pred) / delta)
+
+        # The effective-coupling profile over the tail (the scale-free finding).
+        g_star = int(np.searchsorted(model.edges, t_lo))
+        w_tail = float(np.median(tail.w[max(g_star - 1, 0) :]))
+
+        row = {
+            "x": x,
+            "dps": dps,
+            "occ_agree": occ_agree,
+            "median_dz": med_dz,
+            "k_star": k_star,
+            "t_star": t_star,
+            "t_dens_first": plateau.t_first if plateau else None,
+            "t_dens": plateau.t_mid if plateau else None,
+            "t_dens_last": plateau.t_last if plateau else None,
+            "deficit_max": plateau.deficit_max if plateau else 0,
+            "rtilde_tail_meas": rt_meas,
+            "rtilde_tail_pred": rt_pred,
+            "w_tail_median": w_tail,
+            "poles": tail.poles.tolist(),
+            "w": tail.w.tolist(),
+            "windowed_meas": meas.tolist(),
+            "windowed_pred": pred.tolist(),
+        }
+        rows.append(row)
+        nan = float("nan")
+        print(
+            f"{x:>4} {dps:>5} {occ_agree:>5.2f} {med_dz:>8.3f} "
+            f"{(rt_meas if rt_meas is not None else nan):>7.4f} "
+            f"{(rt_pred if rt_pred is not None else nan):>7.4f} "
+            f"{w_tail:>6.2f} {(row['t_dens'] or nan):>7.1f} "
+            f"{((row['t_dens'] or nan) / x):>6.2f} "
+            f"{(t_star if t_star is not None else nan):>8.2f} "
+            f"{((t_star if t_star is not None else nan) / x):>6.2f} "
+            f"{row['deficit_max']:>6}"
+        )
+
+    # Pooled tail spacing histogram (units of the pole spacing), all cutoffs.
+    edges = np.linspace(0.0, 2.0, 25)
+    h_meas, _ = np.histogram(np.concatenate(pool_meas), bins=edges, density=True)
+    h_pred, _ = np.histogram(np.concatenate(pool_pred), bins=edges, density=True)
+
+    agree = [r["occ_agree"] for r in rows]
+    dens_ratio = [r["t_dens"] / r["x"] for r in rows if r["t_dens"] is not None]
+    print(
+        f"  locality: occupancy agreement {min(agree):.0%}..{max(agree):.0%}; "
+        f"the local two-pole model is the tail's statistics"
+    )
+    if dens_ratio:
+        print(
+            f"  density crossover t_dens/x = {float(np.mean(dens_ratio)):.2f} "
+            f"(2 pi = {2 * np.pi:.2f}) -- the coupling-side linear law; the "
+            f"tracking height t*/x ~ 11.75 stays invisible to the local read"
+        )
+    return {
+        "rows": rows,
+        "N": N,
+        "window": window,
+        "hist_edges": edges.tolist(),
+        "hist_meas": h_meas.tolist(),
+        "hist_pred": h_pred.tolist(),
+    }
+
+
+# ----------------------------------------------------------------------------
 # edge-corruption: is fp64 xi-corruption confined to the low band? (#82)
 # ----------------------------------------------------------------------------
 
@@ -444,6 +648,7 @@ def main() -> None:
             "edge-corruption",
             "accelerate",
             "tracking",
+            "intermediate",
             "all",
         ],
         default="all",
@@ -480,6 +685,25 @@ def main() -> None:
         type=int,
         default=13,
         help="prime cutoff x for the #82 edge-corruption sweep",
+    )
+    ap.add_argument(
+        "--intermediate-x",
+        type=int,
+        nargs="+",
+        default=[6, 10, 14, 18, 22],
+        help="prime cutoffs for the #87 intermediate-statistics read",
+    )
+    ap.add_argument(
+        "--intermediate-N",
+        type=int,
+        default=160,
+        help="truncation N for the #87 read (shares the tracking-sweep caches)",
+    )
+    ap.add_argument(
+        "--window",
+        type=int,
+        default=40,
+        help="sliding-window length for the windowed spacing-ratio curves (#87)",
     )
     ap.add_argument("--refresh", action="store_true")
     ap.add_argument("--out-dir", type=Path, default=DATA)
@@ -518,6 +742,17 @@ def main() -> None:
         )
         out = plots.ccm_tracking_range_figure(
             t, out_path=args.out_dir / "ccm_tracking_range.png"
+        )
+        print(f"  figure -> {out}")
+    if args.mode == "intermediate":
+        i = study_intermediate(
+            args.intermediate_x,
+            N=args.intermediate_N,
+            window=args.window,
+            refresh=args.refresh,
+        )
+        out = plots.ccm_intermediate_stats_figure(
+            i, out_path=args.out_dir / "ccm_intermediate_stats.png"
         )
         print(f"  figure -> {out}")
 

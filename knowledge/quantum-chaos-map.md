@@ -29,7 +29,7 @@ states its own forward case.
 | form factor `K(τ)` arithmetic marks | departures at `τ = log(p^m)/2π` | **#84**; the comparison target for the #44 spike |
 | Riemann–Siegel-lookalike resummation ("a rule for quantizing chaos") | the Riemann–Siegel formula itself | the #55 evaluator ([`riemann-siegel.md`](riemann-siegel.md)) |
 | `H = xp` and its regularizations | Berry–Keating / Connes semiclassics | the deformed-`xp` track #23/#24/#31/#59 |
-| rank-one point scatterer (Šeba class), intermediate statistics | — (an operator-side tool) | **#87 (filed)** — the CCM pole-locked tail |
+| rank-one point scatterer (Šeba class), intermediate statistics | — (an operator-side tool) | the CCM pole-locked tail (#87): [`ccm-intermediate-statistics.md`](ccm-intermediate-statistics.md) |
 | negative controls (systems where the conjecture fails) | functional equation without Euler product | **#85 (filed)** — Davenport–Heilbronn |
 | spectral determinants / characteristic polynomials | Keating–Snaith moments | **out of charter** — value distribution, not a spectrum ([`frontier-survey-2026.md`](frontier-survey-2026.md)) |
 
@@ -64,7 +64,11 @@ perturbations** — the CCM operator's literal structure. It predicts, from the
 coupling-vs-pole-spacing ratio alone, where a spectrum sits between picket
 (weak coupling, roots pinned to poles) and the semi-Poisson class (strong
 coupling). Applied to the prime-built CCM couplings that is a parameter-free
-theory of the pole-locked tail and the `k*(x)` crossover — the #87 spike.
+theory of the pole-locked tail — built and measured in the #87 spike
+([`ccm-intermediate-statistics.md`](ccm-intermediate-statistics.md)): the local
+theory reproduces the tail, the tail sits at a scale-free intermediate point,
+and the coupling-side boundary it recovers is the `2πx` density crossover, not
+the `t* ≈ 12x` tracking law.
 
 **What deliberately stays out.** Keating–Snaith / CFKRS moments and value
 distribution (not spectral; see the frontier survey's verdict); the

@@ -1554,3 +1554,170 @@ def li_family_figure(result, *, out_path: Path | str) -> Path:
     fig.savefig(out, dpi=150)
     plt.close(fig)
     return out
+
+
+def ccm_intermediate_stats_figure(study: dict, *, out_path: Path | str) -> Path:
+    """The Seba / rank-one read of the CCM pole-locked tail (issue #87).
+
+    ``study`` is the dict from ``run_ccm_convergence.study_intermediate``. Four
+    panels. (a) The effective-coupling profile ``w_n = |xi_n / R_n| / Delta`` vs
+    the pole ordinate: it fluctuates scale-free at O(0.1..1) with no break at the
+    measured tracking height ``t*`` (dotted) — the intermediate regime, and why
+    ``t*`` is invisible to coupling magnitude. (b) Windowed ``<r~>`` vs window
+    center: the measured curves against the local two-pole prediction (dashed)
+    and the Poisson / semi-Poisson / GUE / picket references. (c) The pooled tail
+    spacing histogram in units of the pole spacing, measured vs predicted.
+    (d) The two boundaries vs ``x``: the predicted-occupancy deficit plateau
+    (the density crossover, tracking ``2 pi x``) and the measured ``t*(x)`` (the
+    #53 law ``~ 11.75 x``) — the local read sees the former, not the latter.
+    Forward: zeros score only.
+    """
+    rows = sorted(study["rows"], key=lambda r: r["x"])
+    cmap = plt.get_cmap("viridis")
+    colors = {r["x"]: cmap(i / max(1, len(rows) - 1)) for i, r in enumerate(rows)}
+
+    fig, ((ax_w, ax_r), (ax_h, ax_t)) = plt.subplots(2, 2, figsize=(11.5, 8.6))
+
+    # (a) coupling profile w_n vs pole ordinate, with the measured t* marks.
+    for r in rows:
+        poles = np.asarray(r["poles"], dtype=np.float64)
+        w = np.clip(np.asarray(r["w"], dtype=np.float64), 1e-300, None)
+        ax_w.semilogy(
+            poles, w, color=colors[r["x"]], lw=1.0, alpha=0.75, label=f"$x={r['x']}$"
+        )
+        if r.get("t_star"):
+            ax_w.axvline(r["t_star"], color=colors[r["x"]], lw=0.9, ls=":")
+    ax_w.axhline(0.5, color="#c0392b", lw=1.2, ls="--", label=r"$w = 1/2$")
+    ax_w.set_xlabel(r"pole ordinate $d_n = 2\pi n / L$")
+    ax_w.set_ylabel(r"$w_n = |\xi_n / R_n| \, / \, \Delta$")
+    ax_w.set_title(r"Effective coupling: scale-free, no break at $t^*$ (dotted)")
+    ax_w.legend(fontsize=8, loc="lower right")
+
+    # (b) windowed <r~>: measured (solid) vs the local two-pole model (dashed).
+    for ref, name, c in (
+        (1.0, "picket", "#7f8c8d"),
+        (0.6027, "GUE", "#c0392b"),
+        (0.5, "semi-Poisson", "#8e44ad"),
+        (0.3863, "Poisson", "#bdc3c7"),
+    ):
+        ax_r.axhline(ref, color=c, lw=0.9, ls=":")
+        ax_r.annotate(
+            name,
+            (0.995, ref),
+            xycoords=("axes fraction", "data"),
+            fontsize=7,
+            color=c,
+            ha="right",
+            va="bottom",
+        )
+    for r in rows:
+        meas = np.asarray(r["windowed_meas"], dtype=np.float64)
+        if meas.size:
+            ax_r.plot(
+                meas[:, 0],
+                meas[:, 1],
+                color=colors[r["x"]],
+                lw=1.4,
+                label=f"$x={r['x']}$ measured",
+            )
+        pred = np.asarray(r["windowed_pred"], dtype=np.float64)
+        if pred.size:
+            ax_r.plot(pred[:, 0], pred[:, 1], color=colors[r["x"]], lw=1.4, ls="--")
+    ax_r.set_xlabel("window-center ordinate")
+    ax_r.set_ylabel(rf"windowed $\langle\tilde r\rangle$ (window {study['window']})")
+    ax_r.set_title("Measured vs local two-pole theory (dashed)")
+    ax_r.set_ylim(0.3, 1.05)
+    ax_r.legend(fontsize=7, loc="lower right")
+
+    # (c) pooled tail spacing histogram, in units of the pole spacing Delta.
+    edges = np.asarray(study["hist_edges"], dtype=np.float64)
+    centers = 0.5 * (edges[:-1] + edges[1:])
+    width = np.diff(edges)
+    ax_h.bar(
+        centers,
+        study["hist_meas"],
+        width=width,
+        color="#cfe3f7",
+        edgecolor="#5b9bd5",
+        label="measured tail",
+    )
+    ax_h.step(
+        edges,
+        np.r_[study["hist_pred"], study["hist_pred"][-1]],
+        where="post",
+        color="#c0392b",
+        lw=1.6,
+        label="local two-pole theory",
+    )
+    ax_h.axvline(1.0, color="#7f8c8d", lw=0.9, ls=":", label=r"$s = \Delta$ (picket)")
+    ax_h.set_xlabel(r"tail spacing $s / \Delta$")
+    ax_h.set_ylabel("density")
+    ax_h.set_title(r"Tail spacings above $t^*$, pooled over cutoffs")
+    ax_h.legend(fontsize=8, loc="upper left")
+
+    # (d) the two boundaries: the deficit plateau (density crossover) vs t*.
+    xs = np.array([r["x"] for r in rows], dtype=np.float64)
+    t_dens = np.array(
+        [r["t_dens"] if r["t_dens"] is not None else np.nan for r in rows]
+    )
+    lo = np.array(
+        [r["t_dens_first"] if r["t_dens_first"] is not None else np.nan for r in rows]
+    )
+    hi = np.array(
+        [r["t_dens_last"] if r["t_dens_last"] is not None else np.nan for r in rows]
+    )
+    t_star = np.array(
+        [r["t_star"] if r.get("t_star") else np.nan for r in rows], dtype=np.float64
+    )
+    ax_t.errorbar(
+        xs,
+        t_dens,
+        yerr=np.vstack([t_dens - lo, hi - t_dens]),
+        color="#5b9bd5",
+        marker="o",
+        ms=6,
+        lw=1.6,
+        capsize=3,
+        label="deficit plateau (predicted occupancy)",
+    )
+    ax_t.plot(
+        xs,
+        t_star,
+        color="#27ae60",
+        marker="s",
+        ms=6,
+        lw=1.6,
+        label=r"measured $t^*(x) = \zeta_{k^*}$ (#53)",
+    )
+    grid = np.linspace(xs.min(), xs.max(), 50)
+    ax_t.plot(
+        grid,
+        2 * np.pi * grid,
+        color="#5b9bd5",
+        lw=1.2,
+        ls="--",
+        label=r"density crossover $t = 2\pi x$",
+    )
+    ax_t.plot(
+        grid,
+        11.75 * grid,
+        color="#c0392b",
+        lw=1.2,
+        ls="--",
+        label=r"#53 law $t = 11.75\,x$",
+    )
+    ax_t.set_xlabel(r"prime cutoff $x = \lambda^2$")
+    ax_t.set_ylabel("ordinate")
+    ax_t.set_title(r"The local read sees the density crossover, not $t^*$")
+    ax_t.legend(fontsize=8, loc="upper left")
+
+    fig.suptitle(
+        rf"CCM pole-locked tail as a rank-one (Seba) point process ($N={study['N']}$)"
+    )
+    fig.tight_layout()
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    return out

@@ -137,3 +137,50 @@ def test_katz_sarnak_density_figure_writes_png(tmp_path):
     assert out.exists()
     assert out.read_bytes()[:8] == _PNG_MAGIC
     assert len(out.read_bytes()) > 1000
+
+
+def test_davenport_heilbronn_figures_write_png(tmp_path):
+    rng = np.random.default_rng(7)
+    truncations = np.unique(np.geomspace(100, 10_000, 50).astype(np.int64))
+    n = truncations.astype(np.float64)
+    growth_study = {
+        "truncations": truncations,
+        "profiles": {
+            "off-line": n**0.3,
+            "on-line": np.log(n),
+            "generic": np.log(n) * 0.9,
+        },
+        "slopes": {"off-line": 0.31, "on-line": 0.10, "generic": 0.10},
+        "predicted": 0.3085,
+    }
+    out = plots.davenport_heilbronn_growth_figure(
+        growth_study, out_path=tmp_path / "growth.png"
+    )
+    assert out.read_bytes()[:8] == _PNG_MAGIC
+
+    stats_study = {
+        "spacings_f": np.abs(rng.normal(1.0, 0.4, size=800)),
+        "spacings_union": rng.exponential(1.0, size=1600),
+        "rtilde": {"f": 0.645, "chi": 0.638, "union": 0.435},
+        "deficit": 55.6,
+        "t_max": 1000.0,
+    }
+    out = plots.davenport_heilbronn_stats_figure(
+        stats_study, out_path=tmp_path / "stats.png"
+    )
+    assert out.read_bytes()[:8] == _PNG_MAGIC
+
+    grid = np.arange(2.0, 120.0, 0.1)
+    locator_study = {
+        "grid": grid,
+        "abs_f": 2.0 + np.abs(np.sin(grid)),
+        "abs_chi": 1.0 + np.abs(np.cos(grid)),
+        "threshold": 3.45,
+        "true_f": np.arange(5.0, 119.0, 2.0),
+        "true_chi": np.arange(4.0, 119.0, 2.0),
+        "off_line": [85.699, 114.163],
+    }
+    out = plots.davenport_heilbronn_locator_figure(
+        locator_study, out_path=tmp_path / "locator.png"
+    )
+    assert out.read_bytes()[:8] == _PNG_MAGIC

@@ -92,6 +92,16 @@ top-level `CLAUDE.md`; per-session narrative lives in git history.
   `Λ(n)/√n`), what the camp adds beyond universal RMT (the lower-order
   arithmetic ladder #84; intermediate statistics for the CCM tail #87), and
   what stays out of charter (moments, BBM, quantum graphs).
+- [`davenport-heilbronn-control.md`](davenport-heilbronn-control.md) — the
+  negative control (#85): the forward machinery run on the Davenport–Heilbronn
+  function (exact functional equation, **no Euler product**, provable RH
+  violations). The off-line zeros are censused as output (first at
+  `0.8085 + 85.6993i`, matching the published tables), the #43 growth law
+  fires on a *genuine* off-line zero (slope ≈ `σ_c − ½`), and the headline:
+  **local spacing statistics are blind** (f keeps GUE-level repulsion at
+  modest height — the mirror of #87's operator-side lesson) while the
+  smooth-count deficit, the growth exponent, and the locator's off-line
+  mounds are where the pipeline genuinely distinguishes f from ζ.
 - [`bibliography.md`](bibliography.md) — the primary source papers behind the
   experiments, with stable arXiv links and which note/issue uses each. The
   tracked index of the (gitignored) local PDF cache, so contributors can see the

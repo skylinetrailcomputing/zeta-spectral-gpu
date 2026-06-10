@@ -92,6 +92,15 @@ top-level `CLAUDE.md`; per-session narrative lives in git history.
   `Λ(n)/√n`), what the camp adds beyond universal RMT (the lower-order
   arithmetic ladder #84; intermediate statistics for the CCM tail #87), and
   what stays out of charter (moments, BBM, quantum graphs).
+- [`arithmetic-correlations.md`](arithmetic-correlations.md) — arithmetic
+  beyond universality (#84): the Conrey–Snaith / Bogomolny–Keating lower-order
+  pair-correlation terms (two published forms pinned and proven equal in the
+  tests) and the explicit-formula prime peaks of the zeros' Fourier transform
+  `S(u)` at `u = log p^m`. The zeros' measured departure from the bare sine
+  kernel matches the prime-side prediction at shot-noise level already at
+  height ~5·10⁴, and below the Heisenberg frequency `|S(u)|²` is
+  spike-dominated (the GUE ramp is only its smoothing) — the primes literally
+  visible in the zeros.
 - [`davenport-heilbronn-control.md`](davenport-heilbronn-control.md) — the
   negative control (#85): the forward machinery run on the Davenport–Heilbronn
   function (exact functional equation, **no Euler product**, provable RH

@@ -47,6 +47,50 @@ resolution-edge statement.** The `N`-th eigenvalue always sits at the window edg
 is forced up to `≥ 1/(4 ln λ)` by the unresolvable edge. They measure different
 things.
 
+## The gain law: convergence tracks the log-window, not the primes (#94)
+
+What *governs* that super-exponential low-zero rate, step by step? Groskin raised a
+sharp forward observation on the `connes-cvs` reproduction thread
+([akivag613/connes-cvs-#1](https://github.com/akivag613/connes-cvs-/issues/1)): the
+largest single-step gain in his sweep involves **no new prime** — from `c=13` to
+`c=14`, `π(14)=π(13)=6`, yet the first-zero error falls nearly six orders of
+magnitude — and across the sweep the per-step gain correlates with the interval
+length `L = log c` (`r ≈ −0.96`), **not** with prime content.
+
+Because our operator is built forward from the primes, this is directly checkable on
+an independent assembly. [`first_zero_gain_law`](../src/zeta_spectral_gpu/ccm_convergence.py)
+sweeps the first-zero error over integer cutoffs and correlates the per-step
+order-of-magnitude gain `log10(err₀/err₁)` against the log-window (`ln c`, `Δ ln c`)
+versus the arithmetic content (`Δπ(c)`, `Δ#prime-powers`). At `N = 80`:
+
+| step | gain (orders) | `Δ ln c` | `Δπ` | `Δ#pp` |
+|---|---|---|---|---|
+| 11→12 | 5.31 | 0.087 | **0** | **0** |
+| 12→13 | 5.12 | 0.080 | 1 | 1 |
+| 13→14 | 5.30 | 0.074 | **0** | **0** |
+| 14→15 | 5.26 | 0.069 | **0** | **0** |
+| 16→17 | 4.60 | 0.061 | 1 | 1 |
+
+The two largest steps in the window (`11→12`, `13→14`) add **no new prime or prime
+power**. Per-step gain vs prime content is essentially uncorrelated (`r ≈ −0.05` vs
+`Δπ`, `−0.08` vs `Δ#pp`); vs the log-window it is strong and negative (`r ≈ −0.74`
+at `N=80, c=10..18`, tightening to `≈ −0.98` at `N=48, c=11..16` where the finite-`N`
+floor makes the gains cleanly monotone). The exact magnitude is `N`/window-sensitive,
+but the ordering is not: **the log-window `2 ln λ = ln c` governs the gain, the prime
+count does not.** This is the empirical fingerprint of the log-window structure the
+operator is built on — reproduced forward, independent of `connes-cvs`. Reproduce:
+`scripts/run_ccm_convergence.py --mode gain-law`.
+
+**The `c=100` datapoint (Groskin's binding-constraint cell).** An independent
+first-zero assembly at `c=100` is cheap: `|γ₁ − t₁| = 7.30e-211` at `N=120, dps=520`
+in ~15 s, **identical at `dps=640`** — so the cell is **finite-`N`-limited, not
+precision-limited** (the binding constraint is the `dps ≈ 500` Groskin flags, but
+once met the error floor is set by `N`, not the digits). Pushing to `N=160` deepens
+it to `1.78e-253`. Since the first-zero error at fixed `c` is a function of
+`(N, T, dps)`, a digit-for-digit diff against `connes-cvs` needs Groskin's `c=100`
+cell parameters (requested on the thread); our assembly's archimedean term is
+closed-form (no `T`-quadrature), so matching needs only his `N` and adequate `dps`.
+
 ## What this repo found (Phase-0 of #65)
 
 Resolving the spectrum needs the near-null eigenvector `ξ` of the Weil form, which

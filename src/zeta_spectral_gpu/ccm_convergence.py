@@ -37,6 +37,7 @@ flagged, never reported as signal.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import mpmath as mp
@@ -213,6 +214,155 @@ def tracking_height(zeros, k_star: int):
     if k_star <= 0:
         return None
     return zeros[k_star - 1]
+
+
+# ----------------------------------------------------------------------------
+# The gain law: convergence tracks the log-window, not the prime content
+# ----------------------------------------------------------------------------
+
+
+def _primes_upto(n: int) -> list[int]:
+    """Primes ``<= n`` by a small sieve (the cutoffs here are ``O(100)``)."""
+    if n < 2:
+        return []
+    sieve = bytearray([1]) * (n + 1)
+    sieve[0] = sieve[1] = 0
+    for i in range(2, int(n**0.5) + 1):
+        if sieve[i]:
+            sieve[i * i :: i] = bytearray(len(sieve[i * i :: i]))
+    return [i for i in range(2, n + 1) if sieve[i]]
+
+
+def prime_count(c) -> int:
+    """``pi(c)`` — the number of primes ``<= c`` (the cutoff's "prime content")."""
+    return len(_primes_upto(int(c)))
+
+
+def prime_power_count(c) -> int:
+    """The number of prime powers ``p^m <= c`` — the von Mangoldt support, i.e. the
+    operator's *actual* arithmetic content at cutoff ``c`` (via :func:`ccm.prime_powers`)."""
+    return len(ccm.prime_powers(c))
+
+
+def _safe_corr(a, b) -> float:
+    """Pearson ``r`` of two same-length sequences; ``nan`` if either is constant or
+    there are fewer than two points (a one-step sweep has no correlation)."""
+    a = np.asarray(a, dtype=float)
+    b = np.asarray(b, dtype=float)
+    if a.size < 2 or a.std() == 0 or b.std() == 0:
+        return float("nan")
+    return float(np.corrcoef(a, b)[0, 1])
+
+
+@dataclass
+class GainStep:
+    """One step ``c0 -> c1`` of the first-zero gain sweep."""
+
+    c0: int
+    c1: int
+    err0: mp.mpf  # first-zero error |nu_1 - zeta_1| at c0
+    err1: mp.mpf  # ... and at c1
+    gain: float  # log10(err0 / err1): orders of magnitude gained on the first zero
+    dln_c: float  # ln c1 - ln c0: the log-window growth (L = ln c)
+    dpi: int  # pi(c1) - pi(c0): new primes
+    dpp: int  # new prime powers (von Mangoldt support change)
+
+
+@dataclass
+class GainLaw:
+    """What governs the per-step first-zero gain: the log-window, not the primes (#94).
+
+    The forward fingerprint of the operator's ``L = ln c`` log-window. The per-step
+    accuracy gain on the first zero tracks the window growth (``ln c`` / ``d ln c``),
+    not the arithmetic content (``d pi`` / new prime powers) — independently
+    reproducing Groskin's observation on the ``connes-cvs`` sweep (issue #1 there:
+    the largest single-step gain, ``c=13 -> 14``, adds *no* new prime, and the gain
+    correlates with ``log c`` at ``r ~ -0.96``, not with prime content). Correlations
+    are taken over the steps whose *both* endpoints resolved.
+
+    Forward: each cell is the prime-built operator's first eigenvalue; the zeros enter
+    only to score it, after the fact. See the module docstring / ``ccm-convergence-law.md``.
+    """
+
+    cutoffs: list  # the integer cutoffs c swept
+    N: int
+    errors: list  # first-zero error |nu_1 - zeta_1| per cutoff (mpf)
+    resolved: list  # per-cutoff resolution flag (first-zero error < resolve_tol)
+    steps: list  # list[GainStep] over consecutive resolved pairs only
+    r_gain_vs_ln_c: float  # corr(gain, ln c1): vs the log-window LEVEL (Groskin's r)
+    r_gain_vs_dln_c: float  # corr(gain, d ln c): vs the window-growth INCREMENT
+    r_gain_vs_dpi: float  # corr(gain, d pi): vs new-prime content
+    r_gain_vs_dpp: float  # corr(gain, d#prime-powers): vs von Mangoldt support
+
+
+def first_zero_gain_law(
+    cutoffs,
+    N: int,
+    *,
+    dps: int | None = None,
+    resolve_tol: float = 1e-3,
+) -> GainLaw:
+    """Sweep the first-zero error over cutoffs and find what governs the per-step gain.
+
+    Forward: for each integer cutoff ``c`` the prime-built operator is assembled at
+    ``N`` (and ``dps``, default :func:`suggest_dps`), and its first eigenvalue is
+    compared to ``zeta_1`` — the only place a zero enters, after the fact. Over each
+    consecutive pair of *resolved* cells the order-of-magnitude gain
+    ``log10(err0 / err1)`` is correlated against the log-window (``ln c``, ``d ln c``)
+    and against the arithmetic content (``d pi``, ``d#prime-powers``).
+
+    A cell whose first-zero error exceeds ``resolve_tol`` — ``xi`` under-resolved at
+    this ``dps`` — is flagged in :attr:`GainLaw.resolved` and never enters a step (an
+    un-resolved error is precision noise, not a finite-cutoff gain). Note the
+    first-zero error saturates at a finite-``N`` floor for large ``c``, so ``N`` must
+    comfortably exceed the cutoff range for the gain to read the cutoff, not the
+    truncation.
+    """
+    cutoffs = [int(c) for c in cutoffs]
+    errors: list = []
+    resolved: list = []
+    for c in cutoffs:
+        d = dps if dps is not None else suggest_dps(c)
+        res = ccm.converge(N, mp.sqrt(c), 1, dps=d)
+        with mp.workdps(d):
+            err = res.errors[0]
+        errors.append(err)
+        resolved.append(bool(err < resolve_tol))
+
+    steps: list = []
+    for i in range(1, len(cutoffs)):
+        if not (resolved[i - 1] and resolved[i]):
+            continue
+        c0, c1 = cutoffs[i - 1], cutoffs[i]
+        e0, e1 = errors[i - 1], errors[i]
+        with mp.workdps(50):
+            gain = float(mp.log10(e0 / e1))
+            dln_c = float(mp.log(c1) - mp.log(c0))
+        steps.append(
+            GainStep(
+                c0=c0,
+                c1=c1,
+                err0=e0,
+                err1=e1,
+                gain=gain,
+                dln_c=dln_c,
+                dpi=prime_count(c1) - prime_count(c0),
+                dpp=prime_power_count(c1) - prime_power_count(c0),
+            )
+        )
+
+    gains = [s.gain for s in steps]
+    return GainLaw(
+        cutoffs=cutoffs,
+        N=N,
+        errors=errors,
+        resolved=resolved,
+        steps=steps,
+        r_gain_vs_ln_c=_safe_corr(gains, [math.log(s.c1) for s in steps]),
+        r_gain_vs_dln_c=_safe_corr(gains, [s.dln_c for s in steps]),
+        r_gain_vs_dpi=_safe_corr(gains, [s.dpi for s in steps]),
+        r_gain_vs_dpp=_safe_corr(gains, [s.dpp for s in steps]),
+    )
 
 
 # ----------------------------------------------------------------------------

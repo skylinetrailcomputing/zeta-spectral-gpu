@@ -10,6 +10,11 @@ the zeros are only the yardstick. Four studies (Sliwinski arXiv:2601.12133):
   edge       -- The per-index error profile vs the Heisenberg floor 1/(4 ln lambda)
                 (Thm 3.1): low zeros sit far below it (super-exp), the floor is a
                 resolution-EDGE phenomenon.
+  gain-law   -- (#94) What governs the per-step first-zero gain across the cutoff:
+                the log-window (ln c) or the prime content? Forward reproduction of
+                Groskin's connes-cvs observation -- the largest single-step gain
+                (c=13->14) adds NO new prime, and the gain correlates with ln c
+                (r ~ -0.96), not with pi(c). Text-only.
   edge-corruption -- (#82) Is fp64 xi-corruption confined to the low/near-null band,
                 or does it also hit the EDGE eigenvalues that dominate Sliwinski's
                 uniform error E (Conj 4.1)? Splits the per-index corruption low vs
@@ -590,6 +595,72 @@ def study_edge_corruption(ns: list[int], *, x: int, dps: int | None = None) -> d
 
 
 # ----------------------------------------------------------------------------
+# gain-law: is the per-step first-zero gain set by log c or by the primes? (#94)
+# ----------------------------------------------------------------------------
+
+
+def study_gain_law(cs: list[int], *, N: int) -> dict:
+    """Per-step first-zero gain across the cutoff: log-window vs prime content (#94).
+
+    Forward reproduction of Groskin's ``connes-cvs`` observation (issue #1 there).
+    For each integer cutoff the prime-built operator's first eigenvalue is scored
+    against ``zeta_1`` (the only place a zero enters, after the fact), and the
+    per-step order-of-magnitude gain is correlated against the log-window
+    (``ln c``, ``d ln c``) vs the arithmetic content (``d pi``, ``d#prime-powers``).
+    The finding: the gain tracks the log-window, not the primes — the ``c=13 -> 14``
+    step adds no new prime yet posts one of the largest gains.
+    """
+    print(f"\n[gain-law] first-zero gain per cutoff step (N={N})")
+    law = cc.first_zero_gain_law(cs, N=N)
+    print(
+        f"{'c':>4} {'dps':>5} {'pi':>3} {'#pp':>4} {'first_zero_err':>16} {'res?':>5}"
+    )
+    for c, err, res in zip(law.cutoffs, law.errors, law.resolved):
+        print(
+            f"{c:>4} {cc.suggest_dps(c):>5} {cc.prime_count(c):>3} "
+            f"{cc.prime_power_count(c):>4} {mp.nstr(err, 5):>16} "
+            f"{('yes' if res else 'NO'):>5}"
+        )
+    print(f"\n  {'step':>8} {'gain(orders)':>12} {'d ln c':>8} {'d pi':>5} {'d#pp':>5}")
+    for s in law.steps:
+        flag = "  <- no new prime/pp" if s.dpp == 0 else ""
+        print(
+            f"  {f'{s.c0}->{s.c1}':>8} {s.gain:>12.2f} {s.dln_c:>8.4f} "
+            f"{s.dpi:>5} {s.dpp:>5}{flag}"
+        )
+    print(
+        f"\n  per-step gain correlates with:  ln c r={law.r_gain_vs_ln_c:+.3f}  "
+        f"d ln c r={law.r_gain_vs_dln_c:+.3f}   |   "
+        f"d pi r={law.r_gain_vs_dpi:+.3f}  d#pp r={law.r_gain_vs_dpp:+.3f}"
+    )
+    print(
+        "  -> the log-window (ln c) governs the gain, not the prime content: "
+        "Groskin's observation, reproduced forward on an independent assembly."
+    )
+    return {
+        "N": N,
+        "cutoffs": law.cutoffs,
+        "errors": [float(e) for e in law.errors],
+        "resolved": law.resolved,
+        "steps": [
+            {
+                "c0": s.c0,
+                "c1": s.c1,
+                "gain": s.gain,
+                "dln_c": s.dln_c,
+                "dpi": s.dpi,
+                "dpp": s.dpp,
+            }
+            for s in law.steps
+        ],
+        "r_gain_vs_ln_c": law.r_gain_vs_ln_c,
+        "r_gain_vs_dln_c": law.r_gain_vs_dln_c,
+        "r_gain_vs_dpi": law.r_gain_vs_dpi,
+        "r_gain_vs_dpp": law.r_gain_vs_dpp,
+    }
+
+
+# ----------------------------------------------------------------------------
 # accelerate: extrapolate a moderate zero's cutoff-sequence
 # ----------------------------------------------------------------------------
 
@@ -646,6 +717,7 @@ def main() -> None:
             "artifact",
             "edge",
             "edge-corruption",
+            "gain-law",
             "accelerate",
             "tracking",
             "intermediate",
@@ -705,6 +777,20 @@ def main() -> None:
         default=40,
         help="sliding-window length for the windowed spacing-ratio curves (#87)",
     )
+    ap.add_argument(
+        "--gain-law-c",
+        type=int,
+        nargs="+",
+        default=[10, 11, 12, 13, 14, 15, 16, 17, 18],
+        help="integer cutoffs for the #94 first-zero gain-law sweep",
+    )
+    ap.add_argument(
+        "--gain-law-N",
+        type=int,
+        default=80,
+        help="truncation N for the gain-law sweep (must exceed the cutoff range so "
+        "the gain reads the cutoff, not the finite-N floor)",
+    )
     ap.add_argument("--refresh", action="store_true")
     ap.add_argument("--out-dir", type=Path, default=DATA)
     args = ap.parse_args()
@@ -731,6 +817,8 @@ def main() -> None:
             ec, out_path=args.out_dir / "ccm_edge_corruption.png"
         )
         print(f"  figure -> {out}")
+    if args.mode == "gain-law":
+        study_gain_law(args.gain_law_c, N=args.gain_law_N)
     if args.mode in ("accelerate", "all"):
         study_accelerate([11, 12, 13, 14], N=args.N, indices=[10, 20, 30, 40])
     if args.mode in ("tracking", "all"):

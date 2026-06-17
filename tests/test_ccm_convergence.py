@@ -10,6 +10,8 @@ full-scale study lives in ``scripts/run_ccm_convergence.py``.
 
 from __future__ import annotations
 
+import math
+
 import mpmath as mp
 
 from zeta_spectral_gpu import ccm_convergence as cc, plots
@@ -97,6 +99,53 @@ def test_fp64_corruption_genuine_below_fp64():
     assert (
         corr.max_vs_zeros_fp64 <= corr.max_vs_mpmath + corr.max_vs_zeros_mpmath + 1e-6
     )
+
+
+def test_gain_law_tracks_log_window_not_prime_content():
+    # #94: forward reproduction of Groskin's connes-cvs observation -- the per-step
+    # first-zero gain is governed by the log-window growth (ln c), not prime content.
+    # Small N / short integer sweep keeps it CI-friendly but decisive.
+    law = cc.first_zero_gain_law([11, 12, 13, 14, 15, 16], N=48)
+    assert all(law.resolved)  # every cell's xi resolved at the suggested dps
+    assert len(law.steps) == 5
+
+    # The headline step: c=13 -> 14 adds NO new prime and NO new prime power, yet the
+    # first-zero error still drops multiple orders of magnitude.
+    step = next(s for s in law.steps if (s.c0, s.c1) == (13, 14))
+    assert step.dpi == 0 and step.dpp == 0
+    assert step.gain > 2.5
+
+    # The gain is far better explained by the log-window than by arithmetic content:
+    # strong (negative) correlation with ln c, ~zero with the new-prime count.
+    assert abs(law.r_gain_vs_ln_c) > 0.7
+    assert abs(law.r_gain_vs_ln_c) > abs(law.r_gain_vs_dpi)
+    assert abs(law.r_gain_vs_dln_c) > abs(law.r_gain_vs_dpp)
+
+
+def test_gain_law_single_cutoff_has_no_steps():
+    # A one-cutoff sweep forms no steps, so every correlation is nan (undefined) --
+    # the same guard that protects an all-unresolved sweep from a spurious r.
+    law = cc.first_zero_gain_law([13], N=48)
+    assert law.resolved == [True]
+    assert law.steps == []
+    assert math.isnan(law.r_gain_vs_ln_c)
+    assert math.isnan(law.r_gain_vs_dpi)
+
+
+def test_safe_corr_guards_degenerate_input():
+    # Fewer than two points, or a constant axis (e.g. every step adds one prime),
+    # has no defined correlation -- must be nan, never a spurious +/-1.
+    assert math.isnan(cc._safe_corr([1.0], [2.0]))
+    assert math.isnan(cc._safe_corr([1.0, 1.0, 1.0], [1.0, 2.0, 3.0]))
+    assert abs(cc._safe_corr([1.0, 2.0, 3.0], [3.0, 2.0, 1.0]) + 1.0) < 1e-12
+
+
+def test_prime_counts_match_known_values():
+    # pi(c) and the von Mangoldt support count, the two "prime content" axes.
+    assert cc.prime_count(13) == 6  # 2,3,5,7,11,13
+    assert cc.prime_count(14) == 6  # no prime in (13, 14] -- the no-new-prime step
+    assert cc.prime_power_count(13) == 9  # +4,8,9 over the 6 primes
+    assert cc.prime_power_count(14) == 9  # 14 is not a prime power
 
 
 def test_edge_corruption_confined_to_low_band():

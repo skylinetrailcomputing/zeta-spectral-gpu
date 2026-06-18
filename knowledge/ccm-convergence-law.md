@@ -106,7 +106,26 @@ there is his `T=800` quadrature truncation (ours is `T=∞`, `dps`-stable: ident
 `dps=500` and `640`). That truncation is `~40×` below the finite-`N` floor at `N=150`
 but **level with it** at `N=250` — so at `c=100` the cell crosses from `N`-limited to
 co-limited by `N` and `T` somewhere around `N≈250`, the byproduct Groskin flagged,
-now with a number on it. Reproduce one cell:
+now with a number on it.
+
+**The full `γ₁…γ₁₀` cross-check.** Both cells reproduce all ten published zeros, not
+just the first. At `N=250` our independent `γ_k` coincides with Groskin's stored
+`gamma_detected` from **330 digits (`k=1`) down to 309 (`k=10`)**, tracking his own
+`matching_digits` column step for step; at `N=150` our `γ_k` matches the true
+ordinates `244 → 221` digits. Our `γ₁…γ₁₀` are recorded to ~400 digits in
+[`tests/fixtures/c100_crosscheck.json`](../tests/fixtures/c100_crosscheck.json) for a
+line-by-line diff against `connes-cvs` `data/c100/`. Regenerate / diff:
+
+```
+uv run python scripts/run_c100_crosscheck.py --write           # our γ_k → fixture
+uv run python scripts/run_c100_crosscheck.py --diff HIS.json    # side-by-side
+```
+
+One honesty note: at `N=250` our error (`5.24e-330`) is a touch *larger* than his
+(`2.80e-330`) — the `T`-truncation partly *cancels* the finite-`N` error for his `γ`
+rather than adding to it. At this depth the two are comparable, so which lands closer
+to `t` is incidental; the robust statement is the `2.44e-330` operator gap, not a
+ranking. The single-cell first-zero error is also available as
 `convergence_errors(250, mp.sqrt(100), 1, dps=500).first_zero_error`.
 
 ## What this repo found (Phase-0 of #65)

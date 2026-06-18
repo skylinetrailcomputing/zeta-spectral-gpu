@@ -30,10 +30,25 @@ ORACLE_PATH = (
     / "connes_cvs_c13_oracle.json"
 )
 
+C100_CROSSCHECK_PATH = (
+    Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "c100_crosscheck.json"
+)
+
 
 def load_connes_cvs_oracle() -> dict:
     """Return the raw oracle record (cell params, lambda_min, provenance)."""
     return json.loads(ORACLE_PATH.read_text(encoding="utf-8"))
+
+
+def load_c100_crosscheck() -> dict:
+    """Return our independent ``c=100`` results (``gamma_1..gamma_10`` per cell).
+
+    These are *our* forward numbers — produced by ``zeta_spectral_gpu.ccm`` with a
+    closed-form (``T=inf``) archimedean term — recorded so they can be diffed
+    against Groskin's ``connes-cvs`` ``data/c100/`` files. Regenerate with
+    ``scripts/run_c100_crosscheck.py --write``. Loading needs no extra deps.
+    """
+    return json.loads(C100_CROSSCHECK_PATH.read_text(encoding="utf-8"))
 
 
 def _as_mpf(value: str, record: dict, dps: int | None) -> mp.mpf:

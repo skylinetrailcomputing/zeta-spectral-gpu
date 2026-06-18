@@ -81,15 +81,33 @@ count does not.** This is the empirical fingerprint of the log-window structure 
 operator is built on — reproduced forward, independent of `connes-cvs`. Reproduce:
 `scripts/run_ccm_convergence.py --mode gain-law`.
 
-**The `c=100` datapoint (Groskin's binding-constraint cell).** An independent
-first-zero assembly at `c=100` is cheap: `|γ₁ − t₁| = 7.30e-211` at `N=120, dps=520`
-in ~15 s, **identical at `dps=640`** — so the cell is **finite-`N`-limited, not
-precision-limited** (the binding constraint is the `dps ≈ 500` Groskin flags, but
-once met the error floor is set by `N`, not the digits). Pushing to `N=160` deepens
-it to `1.78e-253`. Since the first-zero error at fixed `c` is a function of
-`(N, T, dps)`, a digit-for-digit diff against `connes-cvs` needs Groskin's `c=100`
-cell parameters (requested on the thread); our assembly's archimedean term is
-closed-form (no `T`-quadrature), so matching needs only his `N` and adequate `dps`.
+**The `c=100` digit-for-digit cross-check against `connes-cvs`.** An independent
+first-zero assembly at `c=100` is cheap and `dps`-stable: `|γ₁ − t₁| = 7.30e-211` at
+`N=120, dps=520` in ~15 s, **identical at `dps=640`** (and `1.78e-253` at `N=160`) —
+so the cell is **finite-`N`-limited, not precision-limited** (the `dps ≈ 500` Groskin
+flags is the threshold to clear, but once met the floor is set by `N`). Groskin then
+released his `c=100` cell — `N ∈ {100,150,200,250}, T=800, dps=500`,
+[`data/c100/`](https://github.com/akivag613/connes-cvs-/tree/main/data/c100) — which
+turns the bare datapoint into a *diff*. Because our archimedean term is closed-form
+(`T = ∞`, no `T`-quadrature), matching a cell needs only his `N` and adequate `dps`:
+
+| cell | our `\|γ₁ − t₁\|` | `connes-cvs` (`T=800`) | `γ₁` agreement | his `T=800` truncation |
+|---|---|---|---|---|
+| `N=150, dps=1000` | `1.1409341e-243` | `1.1135607e-243` | ~244 digits | `~2.7e-245` (≈40× below the `N`-floor) |
+| `N=250, dps=500`  | `5.2363304e-330` | `2.8003733e-330` | ~330 digits | `2.44e-330` (≈ the `N`-floor) |
+
+Two reads. (i) Two operators that **share no code** — closed-form digamma here,
+finite-`T` quadrature there — agree on `γ₁` to **330 digits** at `N=250` (measured
+against his stored `gamma_detected`); the `c=13` A/B was floored at 79 digits by
+`dps=80`, so this is the deepest the cross-check has reached. (ii) The *first-zero
+error*'s leading digits differ (`5.24` vs `2.80`) not because the operators disagree
+but because at this depth the error is the ~330th-digit tail, and the our-vs-his gap
+there is his `T=800` quadrature truncation (ours is `T=∞`, `dps`-stable: identical at
+`dps=500` and `640`). That truncation is `~40×` below the finite-`N` floor at `N=150`
+but **level with it** at `N=250` — so at `c=100` the cell crosses from `N`-limited to
+co-limited by `N` and `T` somewhere around `N≈250`, the byproduct Groskin flagged,
+now with a number on it. Reproduce one cell:
+`convergence_errors(250, mp.sqrt(100), 1, dps=500).first_zero_error`.
 
 ## What this repo found (Phase-0 of #65)
 

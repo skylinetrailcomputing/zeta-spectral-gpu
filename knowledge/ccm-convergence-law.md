@@ -142,6 +142,51 @@ the other way too: his finite-`T` error lands *under* our closed-form at both
 confirmed reciprocally (he at our grid, us at his). All four cells are in the fixture;
 diff either against his file with `--diff`.
 
+## Do the higher zeros obey the same law? (#99 — Groskin's question)
+
+The gain law above is the *first* zero's. On the `connes-cvs` thread Groskin asked the
+natural next question: our gain-law edge (super-exp bulk, the log-window `ln c`) and our
+spacing-ratio tracking range (`t* ≈ 12x`, #53) "approach the same place from two sides"
+— is it **one frontier or two**? Concretely: *does the log-window control carry up to
+`γ_k`, or does each `γ_k` meet its own edge as `k` climbs toward `N`?*
+
+[`per_index_gain_law`](../src/zeta_spectral_gpu/ccm_convergence.py) generalises
+`first_zero_gain_law` from `γ₁` to `γ₁…γ_count`: for each zero index it takes the
+per-step cutoff gain `log10(|γ_k(c₀)−ζ_k| / |γ_k(c₁)−ζ_k|)` over the resolved sweep and
+reduces it to `mean_gain(k)`. At `N=100`, `c=10..18` (every `γ_k` here floor-free and
+resolved at every cutoff):
+
+| `k` | 1 | 2 | 4 | 6 | 8 | 10 | 12 |
+|---|---|---|---|---|---|---|---|
+| `t_k` | 14.1 | 21.0 | 30.4 | 37.6 | 43.3 | 49.8 | 56.5 |
+| `mean_gain` (orders/step) | 5.24 | 5.22 | 5.17 | 5.12 | 5.07 | 5.01 | 4.93 |
+
+**The log-window law carries up the band.** Every `γ_k` converges super-exponentially at
+a steady ~5 orders per cutoff step, and `mean_gain(k)` decays **gently and
+monotonically** — a mild depth gradient (~0.03 orders/step per index), not a second
+regime switching on. The higher zeros resolve slightly *less* deeply per step, but by the
+**same** log-window law as `γ₁`. That gradient is the in-band precursor of the
+detachment: the same edge effect that, at `k ≈ k*`, sharpens into the `t*` cutoff.
+
+**So the "two frontiers" are one structure.** The log-window `2 ln λ = ln c` sets *both*
+the in-band convergence rate (uniformly, every `γ_k`) *and* — via the pole spacing
+`2π/L` against the local zero density — the outer edge `t* ≈ 12x` where the band ends
+(#53, [`ccm-universality.md`](ccm-universality.md)). The gain law is a *rate* that holds
+throughout the band; `t*` is the *boundary* of where that rate applies (past it the
+secular roots cluster picket-like and detach). One log-window, seen as a rate inside and
+a boundary at the edge — they coincide near the top of the band because they are the same
+thing.
+
+**Why `mean_gain`, not a correlation.** The per-step-gain↔cutoff *correlation* the
+first-zero `GainLaw` reports (`r_gain_vs_ln_c`) is **not** a robust per-index
+discriminator: it is dominated by finite-`N` floor deceleration — the late steps slow as
+the error nears the floor — so it flips sign between `N=80` (floor close, `r ≈ −0.74`)
+and `N=100` (floor far below, `r ≈ +0.3`) at the *same* `c=10..18` window. `mean_gain(k)`
+is the quantity stable across `N`. (Groskin's underlying observation — the largest single
+steps, `11→12` and `13→14`, add no new prime — is robust at both `N`; what is
+floor-sensitive is the correlation *coefficient*, not the no-new-prime ordering.)
+Reproduce: `scripts/run_ccm_convergence.py --mode per-index-gain-law`.
+
 ## What this repo found (Phase-0 of #65)
 
 Resolving the spectrum needs the near-null eigenvector `ξ` of the Weil form, which

@@ -295,6 +295,39 @@ class GainLaw:
     r_gain_vs_dpp: float  # corr(gain, d#prime-powers): vs von Mangoldt support
 
 
+def _build_gain_steps(cutoffs, errors, resolved) -> list:
+    """Per-step gain records over consecutive *resolved* cutoff pairs.
+
+    Shared by :func:`first_zero_gain_law` (first zero) and :func:`per_index_gain_law`
+    (each zero ``k``): given one eigenvalue's error cutoff-sequence (``mpf``) and a
+    per-cutoff resolution flag, build a :class:`GainStep` for every adjacent pair whose
+    *both* endpoints resolved — an unresolved error is precision noise, never a
+    finite-cutoff gain. ``dpi``/``dpp`` are cutoff-level, identical across indices.
+    """
+    steps: list = []
+    for i in range(1, len(cutoffs)):
+        if not (resolved[i - 1] and resolved[i]):
+            continue
+        c0, c1 = cutoffs[i - 1], cutoffs[i]
+        e0, e1 = errors[i - 1], errors[i]
+        with mp.workdps(50):
+            gain = float(mp.log10(e0 / e1))
+            dln_c = float(mp.log(c1) - mp.log(c0))
+        steps.append(
+            GainStep(
+                c0=c0,
+                c1=c1,
+                err0=e0,
+                err1=e1,
+                gain=gain,
+                dln_c=dln_c,
+                dpi=prime_count(c1) - prime_count(c0),
+                dpp=prime_power_count(c1) - prime_power_count(c0),
+            )
+        )
+    return steps
+
+
 def first_zero_gain_law(
     cutoffs,
     N: int,
@@ -329,28 +362,7 @@ def first_zero_gain_law(
         errors.append(err)
         resolved.append(bool(err < resolve_tol))
 
-    steps: list = []
-    for i in range(1, len(cutoffs)):
-        if not (resolved[i - 1] and resolved[i]):
-            continue
-        c0, c1 = cutoffs[i - 1], cutoffs[i]
-        e0, e1 = errors[i - 1], errors[i]
-        with mp.workdps(50):
-            gain = float(mp.log10(e0 / e1))
-            dln_c = float(mp.log(c1) - mp.log(c0))
-        steps.append(
-            GainStep(
-                c0=c0,
-                c1=c1,
-                err0=e0,
-                err1=e1,
-                gain=gain,
-                dln_c=dln_c,
-                dpi=prime_count(c1) - prime_count(c0),
-                dpp=prime_power_count(c1) - prime_power_count(c0),
-            )
-        )
-
+    steps = _build_gain_steps(cutoffs, errors, resolved)
     gains = [s.gain for s in steps]
     return GainLaw(
         cutoffs=cutoffs,
@@ -362,6 +374,121 @@ def first_zero_gain_law(
         r_gain_vs_dln_c=_safe_corr(gains, [s.dln_c for s in steps]),
         r_gain_vs_dpi=_safe_corr(gains, [s.dpi for s in steps]),
         r_gain_vs_dpp=_safe_corr(gains, [s.dpp for s in steps]),
+    )
+
+
+# ----------------------------------------------------------------------------
+# Per-index gain: does the log-window law carry up the band to gamma_k? (#99)
+# ----------------------------------------------------------------------------
+
+
+@dataclass
+class IndexGain:
+    """The cutoff-gain record for one zero index ``k`` (per-index companion to GainLaw).
+
+    Forward: ``gamma_k`` is the prime-built operator's ``k``-th positive eigenvalue at
+    each cutoff; the ordinate ``zeta_k`` only scores it, after the fact. ``mean_gain``
+    (mean per-step order-of-magnitude gain over the resolved steps) is the robust
+    per-index measure — see :func:`per_index_gain_law`.
+    """
+
+    k: int  # 1-based zero index
+    gains: list  # per-step gain log10(err0/err1) over resolved cutoff pairs
+    mean_gain: float  # mean per-step gain (orders/step); nan if no resolved steps
+    n_steps: int  # number of resolved steps contributing
+    first_resolved_cutoff: (
+        int | None
+    )  # smallest cutoff where gamma_k resolves, else None
+
+
+@dataclass
+class PerIndexGainLaw:
+    """Per-zero cutoff-gain across a sweep: does the log-window law carry up the band?
+
+    The forward generalisation of :func:`first_zero_gain_law` from the first zero to
+    each of the first ``count`` zeros — Groskin's ``connes-cvs`` #1 question (#99): does
+    the super-exponential log-window convergence carry up to ``gamma_k``, or does each
+    ``gamma_k`` meet its own edge as ``k`` climbs toward ``N``? The robust read is the
+    per-index ``mean_gain``: through the resolved bulk every ``gamma_k`` converges
+    super-exponentially with ``mean_gain`` decaying *gently and monotonically* in ``k``
+    — one law, a mild depth gradient, no second regime within the band. The detachment
+    is the ``t*`` tracking edge (:func:`tracking_height`, #53) — a boundary, where the
+    secular roots cluster picket-like, not a second convergence law.
+
+    Why ``mean_gain`` and not the gain-vs-cutoff *correlation* :class:`GainLaw` reports:
+    the correlation is **not** a robust per-index discriminator — it is dominated by
+    finite-``N`` floor deceleration (the late steps slow as the error nears the floor)
+    and flips sign between ``N=80`` (floor-decelerated, ``r ~ -0.74``) and ``N=100``
+    (floor far below, ``r ~ +0.3``) at the *same* window. ``mean_gain`` is stable
+    across ``N``. (Groskin's underlying observation — the largest single steps add no
+    new prime — is robust at both ``N``.)
+    """
+
+    N: int
+    count: int
+    cutoffs: list
+    per_index: list  # list[IndexGain], k = 1..count
+    zeros: list  # zeta_k (the yardstick)
+
+
+def per_index_gain_law(
+    cutoffs,
+    N: int,
+    *,
+    count: int = 10,
+    dps: int | None = None,
+    resolve_tol: float = 1e-3,
+) -> PerIndexGainLaw:
+    """Per-zero cutoff-gain sweep — does the log-window law carry up to ``gamma_k``? (#99).
+
+    For each integer cutoff the prime-built operator is assembled at ``N`` (and
+    ``dps``, default :func:`suggest_dps`) and its first ``count`` positive eigenvalues
+    are scored against the ordinates — the only place a zero enters, after the fact.
+    For each index ``k`` the per-step order-of-magnitude gain
+    ``log10(|gamma_k(c0)-zeta_k| / |gamma_k(c1)-zeta_k|)`` is formed over the adjacent
+    cutoff pairs where ``gamma_k`` is resolved at *both* endpoints (relative error
+    ``< resolve_tol`` — a relative gate, since the ordinates grow with ``k``), and
+    reduced to the per-index ``mean_gain``.
+
+    The finding (#99): through the resolved bulk ``mean_gain(k)`` decays gently and
+    monotonically in ``k`` — the super-exponential log-window convergence carries
+    uniformly up the band, the gentle gradient being the in-band precursor of the
+    ``t*`` detachment, not a second law. ``first_resolved_cutoff`` is the complementary
+    edge probe: a zero that only resolves at a larger cutoff is meeting its own edge; in
+    a bulk window every index resolves at every cutoff. See
+    ``knowledge/ccm-convergence-law.md``.
+    """
+    cutoffs = [int(c) for c in cutoffs]
+    # Per-cutoff: the full error vector (k = 0..count-1) of the prime-built spectrum.
+    err_rows: list = []
+    zeros: list = []
+    for c in cutoffs:
+        d = dps if dps is not None else suggest_dps(c)
+        res = ccm.converge(N, mp.sqrt(c), count, dps=d)
+        with mp.workdps(d):
+            err_rows.append([abs(e) for e in res.errors])
+        if not zeros:
+            zeros = list(res.zeros)
+
+    per_index: list = []
+    for k in range(count):
+        errs_k = [row[k] if k < len(row) else mp.inf for row in err_rows]
+        with mp.workdps(50):
+            resolved_k = [bool(e / abs(zeros[k]) < resolve_tol) for e in errs_k]
+        steps = _build_gain_steps(cutoffs, errs_k, resolved_k)
+        gains = [s.gain for s in steps]
+        first_res = next((cutoffs[i] for i, r in enumerate(resolved_k) if r), None)
+        per_index.append(
+            IndexGain(
+                k=k + 1,
+                gains=gains,
+                mean_gain=float(np.mean(gains)) if gains else float("nan"),
+                n_steps=len(steps),
+                first_resolved_cutoff=first_res,
+            )
+        )
+    return PerIndexGainLaw(
+        N=N, count=count, cutoffs=cutoffs, per_index=per_index, zeros=zeros
     )
 
 

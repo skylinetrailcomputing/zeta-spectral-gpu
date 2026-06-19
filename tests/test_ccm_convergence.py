@@ -140,6 +140,37 @@ def test_safe_corr_guards_degenerate_input():
     assert abs(cc._safe_corr([1.0, 2.0, 3.0], [3.0, 2.0, 1.0]) + 1.0) < 1e-12
 
 
+def test_per_index_gain_law_log_window_carries_up_the_band():
+    # #99: the per-index measure of "does the log-window law carry up to gamma_k".
+    # Through the resolved bulk every gamma_k converges super-exponentially, with the
+    # per-index mean_gain decaying GENTLY and MONOTONICALLY in k -- one law, a mild
+    # depth gradient (the in-band precursor of the t* edge), not a second regime.
+    cutoffs = [11, 12, 13, 14, 15, 16]
+    law = cc.per_index_gain_law(cutoffs, N=48, count=6)
+    assert law.count == 6 and len(law.per_index) == 6
+    for g in law.per_index:
+        # Bulk window: every zero resolves at every cutoff (no edge switch-on here).
+        assert g.first_resolved_cutoff == cutoffs[0]
+        assert g.n_steps == len(cutoffs) - 1
+        assert g.mean_gain > 2.5  # super-exponential, for every zero
+    means = [g.mean_gain for g in law.per_index]
+    assert all(b <= a + 1e-9 for a, b in zip(means, means[1:]))  # non-increasing in k
+    assert means[0] - means[-1] < 1.0  # a gentle gradient, not a cliff
+
+
+def test_per_index_first_zero_matches_first_zero_gain_law():
+    # The shared _build_gain_steps means k=1 of the per-index sweep reproduces the
+    # standalone first_zero_gain_law gains exactly, in a window where both fully
+    # resolve -- the refactor is behaviour-preserving.
+    cutoffs = [11, 12, 13, 14, 15, 16]
+    per = cc.per_index_gain_law(cutoffs, N=48, count=3)
+    fz = cc.first_zero_gain_law(cutoffs, N=48)
+    g1 = per.per_index[0].gains
+    assert len(g1) == len(fz.steps)
+    for a, s in zip(g1, fz.steps):
+        assert abs(a - s.gain) < 1e-9
+
+
 def test_prime_counts_match_known_values():
     # pi(c) and the von Mangoldt support count, the two "prime content" axes.
     assert cc.prime_count(13) == 6  # 2,3,5,7,11,13

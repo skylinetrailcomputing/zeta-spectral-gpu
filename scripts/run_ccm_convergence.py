@@ -15,6 +15,12 @@ the zeros are only the yardstick. Four studies (Sliwinski arXiv:2601.12133):
                 Groskin's connes-cvs observation -- the largest single-step gain
                 (c=13->14) adds NO new prime, and the gain correlates with ln c
                 (r ~ -0.96), not with pi(c). Text-only.
+  per-index-gain-law -- (#99) Does the log-window law carry up the band to gamma_k?
+                Generalises gain-law from the first zero to gamma_1..gamma_count. The
+                robust read is mean_gain(k): through the resolved bulk it decays gently
+                and monotonically -- one super-exp log-window law for every zero, a mild
+                depth gradient (the in-band precursor of the t* edge, #53), not a second
+                regime. Text-only.
   edge-corruption -- (#82) Is fp64 xi-corruption confined to the low/near-null band,
                 or does it also hit the EDGE eigenvalues that dominate Sliwinski's
                 uniform error E (Conj 4.1)? Splits the per-index corruption low vs
@@ -661,6 +667,61 @@ def study_gain_law(cs: list[int], *, N: int) -> dict:
 
 
 # ----------------------------------------------------------------------------
+# per-index-gain-law: does the log-window law carry up the band to gamma_k? (#99)
+# ----------------------------------------------------------------------------
+
+
+def study_per_index_gain_law(cs: list[int], *, N: int, count: int) -> dict:
+    """Per-index cutoff-gain across the band (#99) -- Groskin's connes-cvs #1 question.
+
+    Forward generalisation of the #94 first-zero gain law to gamma_1..gamma_count: for
+    each zero index the per-step order-of-magnitude gain is taken over the resolved
+    cutoff sweep and reduced to mean_gain(k). The robust finding: mean_gain decays
+    gently and monotonically in k -- the super-exponential log-window convergence
+    carries uniformly up the band (one law, a mild depth gradient), the gradient being
+    the in-band precursor of the t* detachment (#53), not a second law.
+    """
+    print(f"\n[per-index-gain-law] cutoff-gain per zero index (N={N}, c={cs})")
+    law = cc.per_index_gain_law(cs, N=N, count=count)
+    print(f"  {'k':>2} {'t_k':>8} {'nsteps':>6} {'mean_gain':>9} {'first_res_c':>11}")
+    for g, z in zip(law.per_index, law.zeros):
+        fr = g.first_resolved_cutoff if g.first_resolved_cutoff is not None else "-"
+        print(
+            f"  {g.k:>2} {float(z):>8.2f} {g.n_steps:>6} {g.mean_gain:>9.2f} "
+            f"{str(fr):>11}"
+        )
+    means = [g.mean_gain for g in law.per_index]
+    mono = all(b <= a + 1e-9 for a, b in zip(means, means[1:]))
+    print(
+        f"\n  mean_gain {means[0]:.2f} (k=1) -> {means[-1]:.2f} (k={count}); "
+        f"monotone non-increasing in k: {mono}"
+    )
+    print(
+        "  -> the log-window super-exp convergence carries up the band (every gamma_k), "
+        "a gentle depth gradient in k -- the in-band precursor of the t* edge (#53), "
+        "not a second law. (mean_gain, not the gain-vs-cutoff correlation, is the "
+        "robust per-index measure: that correlation is finite-N floor-sensitive.)"
+    )
+    return {
+        "N": N,
+        "count": count,
+        "cutoffs": law.cutoffs,
+        "zeros": [float(z) for z in law.zeros],
+        "monotone": mono,
+        "per_index": [
+            {
+                "k": g.k,
+                "mean_gain": g.mean_gain,
+                "n_steps": g.n_steps,
+                "first_resolved_cutoff": g.first_resolved_cutoff,
+                "gains": g.gains,
+            }
+            for g in law.per_index
+        ],
+    }
+
+
+# ----------------------------------------------------------------------------
 # accelerate: extrapolate a moderate zero's cutoff-sequence
 # ----------------------------------------------------------------------------
 
@@ -718,6 +779,7 @@ def main() -> None:
             "edge",
             "edge-corruption",
             "gain-law",
+            "per-index-gain-law",
             "accelerate",
             "tracking",
             "intermediate",
@@ -791,6 +853,27 @@ def main() -> None:
         help="truncation N for the gain-law sweep (must exceed the cutoff range so "
         "the gain reads the cutoff, not the finite-N floor)",
     )
+    ap.add_argument(
+        "--per-index-c",
+        type=int,
+        nargs="+",
+        default=[10, 11, 12, 13, 14, 15, 16, 17, 18],
+        help="integer cutoffs for the #99 per-index gain-law sweep",
+    )
+    ap.add_argument(
+        "--per-index-N",
+        type=int,
+        default=100,
+        help="truncation N for the per-index sweep (large enough that the floor does "
+        "not bite the probed band -- N=100 keeps gamma_1..gamma_24 floor-free over "
+        "c=10..18)",
+    )
+    ap.add_argument(
+        "--per-index-count",
+        type=int,
+        default=12,
+        help="number of zeros gamma_1..gamma_count to profile in the #99 per-index sweep",
+    )
     ap.add_argument("--refresh", action="store_true")
     ap.add_argument("--out-dir", type=Path, default=DATA)
     args = ap.parse_args()
@@ -819,6 +902,10 @@ def main() -> None:
         print(f"  figure -> {out}")
     if args.mode == "gain-law":
         study_gain_law(args.gain_law_c, N=args.gain_law_N)
+    if args.mode == "per-index-gain-law":
+        study_per_index_gain_law(
+            args.per_index_c, N=args.per_index_N, count=args.per_index_count
+        )
     if args.mode in ("accelerate", "all"):
         study_accelerate([11, 12, 13, 14], N=args.N, indices=[10, 20, 30, 40])
     if args.mode in ("tracking", "all"):

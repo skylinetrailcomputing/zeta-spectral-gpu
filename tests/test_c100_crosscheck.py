@@ -1,9 +1,9 @@
 """Invariants for the independent ``c=100`` cross-check fixture (#94 follow-up).
 
 ``tests/fixtures/c100_crosscheck.json`` records *our* forward ``gamma_1..gamma_10``
-at Groskin's two published ``c=100`` cells (``N=150,dps=1000`` and ``N=250,dps=500``),
-produced by ``zeta_spectral_gpu.ccm`` with a closed-form (``T=inf``) archimedean
-term. The always-on tests here guard the fixture and its honesty using only
+at Groskin's published ``c=100`` extraction cells (``N in {120,150,160,250}``;
+``N=120/160`` are the cells he ran at our grid points), produced by
+``zeta_spectral_gpu.ccm`` with a closed-form (``T=inf``) archimedean term. The always-on tests here guard the fixture and its honesty using only
 ``mpmath`` (a core dep), so they run in CI. The heavy rebuild — re-running our
 assembly and matching the fixture to hundreds of digits — is a ``slow`` test,
 deselected by default.
@@ -32,7 +32,9 @@ def test_fixture_structure():
     rec = oracle.load_c100_crosscheck()
     cells = rec["cells"]
     assert [(c["cell"]["N"], c["cell"]["dps"]) for c in cells] == [
+        (120, 560),
         (150, 1000),
+        (160, 560),
         (250, 500),
     ]
     for c in cells:

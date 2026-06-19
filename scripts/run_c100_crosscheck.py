@@ -16,8 +16,10 @@ an adequate ``dps``. The gap between our ``gamma_k`` and Groskin's ``gamma_detec
 ``T``-truncation. See ``knowledge/ccm-convergence-law.md``.
 
 Groskin's published cells (akivag613/connes-cvs-, ``data/c100/``):
-``N in {100,150,200,250}, T=800, dps=500``; the two first-zero extractions diffed
-here are ``N=150,dps=1000`` and ``N=250,dps=500``.
+``N in {100,150,200,250}, T=800, dps=500``. The extraction cells we record our
+closed-form ``gamma_k`` at are his two originals — ``N=150,dps=1000`` and
+``N=250,dps=500`` — plus ``N=120`` and ``N=160`` (``dps=560``), the two cells he ran
+at *our* grid points (issue #1, the finite-``T`` mirror of our ``N=250`` run).
 
     uv run python scripts/run_c100_crosscheck.py                       # report
     uv run python scripts/run_c100_crosscheck.py --write              # (re)write fixture
@@ -41,9 +43,14 @@ FIXTURE = (
     / "c100_crosscheck.json"
 )
 
-# Groskin's two published first-zero extraction cells at c=100.
+# Groskin's published c=100 extraction cells. The first two are his original
+# (N=150,dps=1000) and (N=250,dps=500); the latter two (N=120,N=160 at dps=560) are
+# the cells he ran at *our* grid points (issue #1, 2026-06-19), the mirror of our
+# N=250 run — finite-T against our closed-form. Listed ascending in N.
 CELLS = [
+    {"c": 100, "N": 120, "dps": 560, "count": 10},
     {"c": 100, "N": 150, "dps": 1000, "count": 10},
+    {"c": 100, "N": 160, "dps": 560, "count": 10},
     {"c": 100, "N": 250, "dps": 500, "count": 10},
 ]
 

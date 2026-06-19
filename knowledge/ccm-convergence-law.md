@@ -128,6 +128,20 @@ to `t` is incidental; the robust statement is the `2.44e-330` operator gap, not 
 ranking. The single-cell first-zero error is also available as
 `convergence_errors(250, mp.sqrt(100), 1, dps=500).first_zero_error`.
 
+**The reciprocal mirror at `N=120` and `N=160`.** Groskin then ran the symmetric
+check — `connes-cvs` (finite-`T`, `T=800`) at *our* two grid points — and published
+[`c100_N120_dps560`](https://github.com/akivag613/connes-cvs-/blob/main/data/c100/c100_N120_dps560_gamma_extraction.json)
+/ [`c100_N160_dps560`](https://github.com/akivag613/connes-cvs-/blob/main/data/c100/c100_N160_dps560_gamma_extraction.json),
+both storing `gamma_detected`. Our closed-form `γ_k` coincides with his
+`gamma_detected` from **211 digits (`k=1`) down to 187 (`k=10`)** at `N=120`, and
+**253 → 231** at `N=160` — two operators sharing no code agreeing eigenvalue-for-
+eigenvalue across all ten zeros at both new cells. And the partial cancellation runs
+the other way too: his finite-`T` error lands *under* our closed-form at both
+(`1.97e-211` vs our `7.30e-211` at `N=120`; `1.82e-254` vs our `1.78e-253` at
+`N=160`) — the same `T`-truncation-cancels-finite-`N` effect seen at `N=250`, now
+confirmed reciprocally (he at our grid, us at his). All four cells are in the fixture;
+diff either against his file with `--diff`.
+
 ## What this repo found (Phase-0 of #65)
 
 Resolving the spectrum needs the near-null eigenvector `ξ` of the Weil form, which
